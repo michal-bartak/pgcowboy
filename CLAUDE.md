@@ -967,6 +967,8 @@ frontend/                 Vanilla JS UI (app.js via backend())
 build/scripts/            Installer recipes: make-dmg.sh, make-msi.ps1, make-linux-packages.sh
 build/windows/installer/  WiX v3 source (product.wxs, License.rtf) — hand-written, committed
 build/linux/              pgcowboy.desktop (installed by the deb/rpm)
+docs/                     Astro + Starlight site (GitHub Pages); src/assets/ holds the figures
+docs/scripts/shots/       Screenshot pipeline — capture.ps1, shots.json, audit.mjs (Windows only)
 sql/README.md             Docs for the user's PostgreSQL functions / templates
 ```
 
@@ -1082,6 +1084,57 @@ renaming artifacts never breaks the update check.
   icon. Runtime deps name the WebKit the binary is linked against
   (`libwebkit2gtk-4.1-0` / `webkit2gtk4.1`) — keep them in step with the Makefile's
   `webkit2_41` build tag.
+
+## Docs screenshots (`docs/scripts/shots/`)
+
+Every figure in the docs is a **light/dark pair** under `docs/src/assets/<section>/`, picked by
+Starlight's theme toggle — so replacing one is overwriting the file, never editing markdown.
+Capture is **scripted and Windows-only** (it drives the real app); human-facing instructions are in
+[docs building.md](docs/src/content/docs/building.md). Four helpers plus a manifest:
+
+| file | role |
+|------|------|
+| `capture.ps1` | dot-sourced; `Set-ClientSize`, `Save-ClientShot`, `Set-OsTheme`, `Invoke-ClientClick/Scroll`, `Reset-Cursor` |
+| `shots.json` | one entry per figure: how to reach it, plus `crop` / `callout` / `redact` / `scrolls` |
+| `contentbox.mjs` | derives a callout rect from the pixels |
+| `controlbox.mjs` | derives a control's **inner** rect, so a redaction fits inside the field |
+| `audit.mjs` | six checks over the whole set; `optimize.mjs` re-encodes losslessly |
+
+**Decisions that cost a re-shoot to rediscover — don't regress them:**
+
+- **Capture the CLIENT rect in physical pixels**, never a hand-crop. The first generation was cropped
+  by hand in an image editor: six different sizes across figures, and a 1–2px rim of desktop bleeding
+  through the window edge (a teal `0,28,37` last row in the dark shots). `Set-ClientSize` converges on
+  an exact client size; PowerShell must be `SetProcessDPIAware()` first or a 175%-scaled display
+  silently returns logical pixels.
+- **The canonical size comes from the app's own `config.yaml`** (`window_width`/`window_height`),
+  not from a constant — resize until the Operations page stops scrolling and the app restores it next
+  launch. `audit.mjs` fails any figure showing a scrollbar unless it declares `scrolls: true`
+  (Settings always scrolls; `comment-raw-view` does because the Raw textarea is ~95px taller than
+  the Fields inputs it replaces).
+- **Flip the theme with `Set-OsTheme`, in place.** `ui.theme: system` + `applyTheme`'s
+  `prefers-color-scheme` listener means the OS flip repaints the window without losing scroll
+  position, staged edits or an open dialog — which is the only way a light/dark pair differs by
+  nothing but the theme. Snapshot with `Get-OsTheme` and **restore it at the end**; those two
+  `HKCU\…\Themes\Personalize` DWORDs are the only system state the pipeline touches.
+- **Blur an `[autofocus]` text field before capturing** (click the dialog's heading). Otherwise its
+  caret lands in one theme's frame and not the other's.
+- **Callout frames** (`#3DC46C`, 4px, square): left and right clearance **equal**, and every frame on
+  a tab starts at the **same x** (Settings 14, Operations 474) whatever its width. A frame **may
+  cross the scrollbar lane** — it is empty space, and treating it as a boundary is what once ate the
+  right-hand pad and put the stroke on the row action buttons.
+- **Redaction is pixelation in the capture, not sanitised data.** Rects must sit **inside** the
+  control (derive with `controlbox.mjs`); ones sized by eye overhung the input border by 4–8px. The
+  averaging **downscale** is what destroys the information — the **upscale** is bicubic purely for
+  looks, so "hardening" it back to nearest-neighbour buys no safety. The site's people-vs-schema
+  policy lives in `shots.json`'s `redactPolicy`; `audit.mjs` can prove a rect stayed inside its
+  control but **not** that it covers the right thing, so eyeball every redacted figure.
+- **`optimize.mjs` after every re-shoot.** `System.Drawing` writes a lazily-deflated PNG ~14% larger
+  than the same pixels need; the re-encode asserts pixel-identity before replacing a file, and reads
+  the file list from `shots.json` so it never rewrites strays sitting in the assets folder.
+
+Placeholders: `docs/scripts/screenshots.mjs` generates a self-naming placeholder for any newly
+referenced figure (`make docs-shots` / `docs-shots-status`), so a missing shot never breaks the build.
 
 ## Out of scope (v1)
 

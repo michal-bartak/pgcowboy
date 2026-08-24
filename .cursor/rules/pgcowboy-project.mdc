@@ -429,8 +429,33 @@ internal/batch/           Concurrent executor + all-cluster scan (Search/LoadRol
 internal/commands/        Op validation + arg maps
 internal/update/          GitHub-Releases version check (stdlib http + semver compare)
 frontend/                 UI (app.js uses backend())
+docs/                     Astro + Starlight site; src/assets/ holds the light/dark figures
+docs/scripts/shots/       Screenshot pipeline (Windows only)
 sql/README.md             Docs for user's PostgreSQL functions
 ```
+
+## Docs screenshots (`docs/scripts/shots/`)
+
+Figures are **light/dark pairs** under `docs/src/assets/<section>/`; replacing one is overwriting the
+file. Capture is scripted, Windows-only: `capture.ps1` (dot-sourced: `Set-ClientSize`,
+`Save-ClientShot`, `Set-OsTheme`, `Invoke-ClientClick/Scroll`), `shots.json` (per-figure manifest),
+`contentbox.mjs` / `controlbox.mjs` (derive callout and control rects from pixels), `audit.mjs`
+(six checks), `optimize.mjs` (lossless re-encode). Human docs: `docs/src/content/docs/building.md`.
+
+| Rule | Why |
+|------|-----|
+| Capture the **client rect in physical pixels**, never a hand-crop | hand-cropping gave six sizes and a 1–2px desktop rim bleeding through the window edge |
+| PowerShell must call `SetProcessDPIAware()` first | otherwise a 175% display silently returns logical pixels |
+| Canonical size comes from the app's `config.yaml` window size | resize until Operations stops scrolling; `audit.mjs` fails a scrollbar unless `scrolls: true` |
+| Flip themes with `Set-OsTheme` **in place**, snapshot + restore | `ui.theme: system` repaints without losing scroll/staged edits/open dialogs |
+| Blur `[autofocus]` fields (click the dialog heading) before capturing | a blinking caret lands in one theme's frame only |
+| Callout frames: equal left/right clearance, same x per tab (Settings 14, Operations 474), may cross the scrollbar | treating the scrollbar as a boundary once ate the right pad and put the stroke on the row buttons |
+| Redaction rects must sit **inside** the control (`controlbox.mjs`) | eyeballed rects overhung the input border by 4–8px |
+| The averaging **downscale** destroys the data; the bicubic **upscale** is cosmetic | reverting it to nearest-neighbour buys no safety |
+| Run `optimize.mjs` after a re-shoot | `System.Drawing` PNGs are ~14% larger than needed; it asserts pixel-identity |
+
+`audit.mjs` proves a redaction stayed inside its control, **not** that it covers the right thing —
+check every redacted figure by eye. Policy lives in `shots.json`'s `redactPolicy`.
 
 ## Out of scope (v1)
 

@@ -1,0 +1,519 @@
+{
+  "$comment": [
+    "Figure manifest for the docs screenshots. Consumed by audit.mjs; read by a human (or an agent)",
+    "driving capture.ps1 through the app. Every figure is a -light.png / -dark.png pair under",
+    "src/assets/<dir>/, captured at the canonical client size below unless it declares a crop.",
+    "",
+    "  state    how to reach the figure, from the app's startup state",
+    "  crop     keep only the top N rows (a strip figure); absent = full window",
+    "  callout  x,y,w,h of the green #3DC46C highlight box, or absent for no callout",
+    "  redact   regions pixelated by Save-ClientShot -Redact, for personal data",
+    "  scrolls  the panel legitimately shows a scrollbar; audit.mjs skips its no-scrollbar rule",
+    "  skip     why this figure is not re-captured by this pipeline",
+    "",
+    "Callout and redact rects are per-capture pixel coordinates, valid only at the canonical size and",
+    "only for the app version they were derived against. Re-derive them -- contentbox.mjs for callouts,",
+    "controlbox.mjs for redactions -- rather than nudging them by hand, and record what you used here.",
+    "",
+    "audit.mjs verifies size, edge cleanliness, callout geometry and alignment, redaction containment",
+    "and the absence of a scrollbar. It CANNOT verify that a redaction covers the RIGHT thing --",
+    "check every redacted figure by eye before committing."
+  ],
+  "canonical": {
+    "width": 1670,
+    "height": 1938
+  },
+  "callout": {
+    "color": "#3DC46C",
+    "rgb": [
+      61,
+      196,
+      108
+    ],
+    "width": 4,
+    "pad": 20,
+    "anchorX": {
+      "configuration": 14,
+      "usage": 474
+    },
+    "$comment": [
+      "Two rules the frames obey. (1) Left and right clearance are EQUAL -- an earlier version",
+      "clamped the right edge to the content-scan limit, so wide groups lost their right pad and the",
+      "frame sat on the row's action buttons. (2) Every frame on a tab starts at the same x, which is",
+      "what anchorX pins; deriving it per figure put present-on on 475 and its siblings on 474.",
+      "The frame MAY cross the scrollbar lane -- it is empty space, and treating it as a boundary is",
+      "what caused (1)."
+    ]
+  },
+  "redactPolicy": [
+    "Personal data is pixelated in the capture, not sanitised in the database.",
+    "Michal Bartak and Michal Kozusznik: login and full name shown, email domain (everything after",
+    "the @) pixelated. Every other person: login, full name and email pixelated in full.",
+    "Internal database / schema / object names are NOT redacted (the 1.0.0 assets published them).",
+    "Every rect must sit INSIDE the control it covers -- derive it with controlbox.mjs, which returns",
+    "the control's inner box; rects sized by eye overhung the input border by 4-8px."
+  ],
+  "baseline": {
+    "$comment": "State every figure starts from. Target selection is PRODUCTION + UAT (8 clusters).",
+    "role": "bartakm",
+    "targets": [
+      "production",
+      "uat"
+    ],
+    "uiTheme": "system",
+    "windowSize": "config.yaml window_width 968 / window_height 1144, which restores a 1670x1938 client",
+    "note": "Two gotchas: blur an [autofocus] text field (click the dialog heading) or its caret lands in one theme and not the other; and this role's comments DIFFER across clusters, so the inline comment editor only appears after the Comments dialog folds them with 'Use in all clusters' + OK."
+  },
+  "figures": [
+    {
+      "name": "clusters-tab",
+      "dir": "configuration",
+      "state": "Clusters tab, virgin Status column. Statuses survive a tab switch once Test connections has run, so restart the app for this one."
+    },
+    {
+      "name": "cluster-editor",
+      "dir": "configuration",
+      "state": "Clusters tab, pencil on PROD_PM. Click the 'Edit cluster' heading to blur the Alias field."
+    },
+    {
+      "name": "cluster-groups",
+      "dir": "configuration",
+      "state": "Clusters tab, Cluster groups button (right of the tab bar) -- the groups list popup."
+    },
+    {
+      "name": "cluster-groups-editor",
+      "dir": "configuration",
+      "state": "From the groups list, pencil on Production. Click the 'Edit group' heading to blur the Label field."
+    },
+    {
+      "name": "settings-overview",
+      "dir": "configuration",
+      "state": "Settings tab, scrolled to top.",
+      "scrolls": true
+    },
+    {
+      "name": "settings-general",
+      "dir": "configuration",
+      "state": "Settings tab, scrolled to top.",
+      "callout": [
+        14,
+        162,
+        554,
+        269
+      ],
+      "scrolls": true
+    },
+    {
+      "name": "settings-pwgen",
+      "dir": "configuration",
+      "state": "Settings tab, scrolled to top.",
+      "callout": [
+        14,
+        453,
+        566,
+        329
+      ],
+      "scrolls": true
+    },
+    {
+      "name": "settings-parent-roles",
+      "dir": "configuration",
+      "state": "Settings tab, scrolled to top.",
+      "callout": [
+        14,
+        803,
+        456,
+        456
+      ],
+      "scrolls": true
+    },
+    {
+      "name": "settings-comments",
+      "dir": "configuration",
+      "state": "Settings tab, scrolled to top.",
+      "callout": [
+        14,
+        1285,
+        1187,
+        293
+      ],
+      "scrolls": true
+    },
+    {
+      "name": "settings-role-details",
+      "dir": "configuration",
+      "state": "Settings tab, scrolled to the bottom.",
+      "callout": [
+        14,
+        730,
+        1643,
+        266
+      ],
+      "scrolls": true
+    },
+    {
+      "name": "settings-templates",
+      "dir": "configuration",
+      "state": "Settings tab, scrolled to the bottom.",
+      "callout": [
+        14,
+        1016,
+        1643,
+        615
+      ],
+      "scrolls": true
+    },
+    {
+      "name": "template-editor",
+      "dir": "configuration",
+      "state": "Settings bottom, click the 'Grant parents' template -- deliberately a vanilla-default template, NOT 'Create role', which in this deployment holds a custom admin_access.create_role(...) call. Click the dialog heading to blur the textarea.",
+      "scrolls": true
+    },
+    {
+      "name": "operations-overview",
+      "dir": "usage",
+      "state": "Alter role, bartakm loaded, comments folded consistent. The lead figure (also README.md's inline image).",
+      "redact": [
+        [
+          1035,
+          455,
+          135,
+          44
+        ]
+      ]
+    },
+    {
+      "name": "target-selection",
+      "dir": "usage",
+      "state": "Operations, Create role mode, sidebar with 'Or pick clusters' expanded."
+    },
+    {
+      "name": "find-role",
+      "dir": "usage",
+      "state": "Alter role op-tab, search 'michal' -- 8 matching roles. Click the 'Find role' heading to blur the search input. Row inner tops are 749 + 72*(i-1); rects are inset 2px inside the row card.",
+      "redact": [
+        [
+          250,
+          823,
+          750,
+          53
+        ],
+        [
+          250,
+          895,
+          750,
+          53
+        ],
+        [
+          250,
+          967,
+          750,
+          53
+        ],
+        [
+          250,
+          1183,
+          750,
+          53
+        ],
+        [
+          250,
+          1255,
+          750,
+          53
+        ],
+        [
+          810,
+          751,
+          190,
+          53
+        ],
+        [
+          810,
+          1039,
+          190,
+          53
+        ],
+        [
+          810,
+          1111,
+          190,
+          53
+        ]
+      ]
+    },
+    {
+      "name": "create-role-form",
+      "dir": "usage",
+      "state": "Create role op-tab, empty form over the 8 selected clusters."
+    },
+    {
+      "name": "present-on",
+      "dir": "usage",
+      "state": "Alter role, bartakm loaded. Strip showing the Present on row.",
+      "crop": 544,
+      "callout": [
+        474,
+        159,
+        460,
+        93
+      ],
+      "redact": [
+        [
+          1035,
+          455,
+          135,
+          44
+        ]
+      ]
+    },
+    {
+      "name": "presence-editor",
+      "dir": "usage",
+      "state": "Alter role, Present on pencil -- the Add / remove role on clusters dialog.",
+      "redact": [
+        [
+          1035,
+          455,
+          135,
+          44
+        ]
+      ]
+    },
+    {
+      "name": "scope-labels",
+      "dir": "usage",
+      "state": "Alter role with staged edits: UAT_PM and UAT_LIVE dropped in the presence editor (struck through) and PROD_CAT added to gr_devs_db (+PROD_CAT). Nothing saved.",
+      "crop": 916,
+      "redact": [
+        [
+          1035,
+          455,
+          135,
+          44
+        ]
+      ]
+    },
+    {
+      "name": "privileges-rows",
+      "dir": "usage",
+      "state": "Alter role, bartakm loaded. Role Parents section.",
+      "callout": [
+        474,
+        534,
+        1183,
+        380
+      ],
+      "redact": [
+        [
+          1035,
+          455,
+          135,
+          44
+        ]
+      ]
+    },
+    {
+      "name": "privilege-scope-editor",
+      "dir": "usage",
+      "state": "Alter role, pencil on the gr_devs_db row -- the per-cluster grant/revoke dialog (PROD_CAT unticked).",
+      "redact": [
+        [
+          1035,
+          455,
+          135,
+          44
+        ]
+      ]
+    },
+    {
+      "name": "add-privilege",
+      "dir": "usage",
+      "state": "Alter role, Assign parents... -- the parent pick-list dialog. Click the 'Assign parents' heading to blur the Role names field.",
+      "redact": [
+        [
+          1035,
+          455,
+          135,
+          44
+        ]
+      ]
+    },
+    {
+      "name": "attributes-rows",
+      "dir": "usage",
+      "state": "Alter role, bartakm loaded. Attributes section.",
+      "callout": [
+        474,
+        925,
+        1183,
+        489
+      ],
+      "redact": [
+        [
+          1035,
+          455,
+          135,
+          44
+        ]
+      ]
+    },
+    {
+      "name": "set-attribute",
+      "dir": "usage",
+      "state": "Alter role, pencil on the Superuser row -- the per-cluster enable/disable dialog.",
+      "redact": [
+        [
+          1035,
+          455,
+          135,
+          44
+        ]
+      ]
+    },
+    {
+      "name": "settings-rows",
+      "dir": "usage",
+      "state": "Alter role, bartakm loaded. Settings (role GUC) section.",
+      "callout": [
+        474,
+        1426,
+        1183,
+        259
+      ],
+      "redact": [
+        [
+          1035,
+          455,
+          135,
+          44
+        ]
+      ]
+    },
+    {
+      "name": "add-setting",
+      "dir": "usage",
+      "state": "Alter role, Add setting... -- the scope dialog with name and value inputs. Click the 'Add setting' heading to blur the Setting name field.",
+      "redact": [
+        [
+          1035,
+          455,
+          135,
+          44
+        ]
+      ]
+    },
+    {
+      "name": "comment-fields-view",
+      "dir": "usage",
+      "state": "Alter role, inline comment editor in Fields mode.",
+      "callout": [
+        474,
+        332,
+        1183,
+        191
+      ],
+      "redact": [
+        [
+          1035,
+          455,
+          135,
+          44
+        ]
+      ]
+    },
+    {
+      "name": "comment-raw-view",
+      "dir": "usage",
+      "state": "Alter role, inline comment editor toggled to Raw. Strip figure. This is the one Operations figure that legitimately scrolls: the Raw textarea is ~95px taller than the two Fields inputs it replaces, which pushes the form past the window. Everything else fits at the canonical height.",
+      "crop": 982,
+      "callout": [
+        474,
+        332,
+        1183,
+        251
+      ],
+      "redact": [
+        [
+          805,
+          425,
+          145,
+          45
+        ]
+      ],
+      "scrolls": true
+    },
+    {
+      "name": "comments-dialog",
+      "dir": "usage",
+      "state": "Alter role BEFORE folding the comments -- two versions, the second carrying a read-only 'tags' array with the warning marker. Click the 'Comments' heading to blur the first Full name field.",
+      "redact": [
+        [
+          995,
+          830,
+          140,
+          43
+        ],
+        [
+          995,
+          1079,
+          140,
+          44
+        ]
+      ]
+    },
+    {
+      "name": "password-row",
+      "dir": "usage",
+      "state": "Alter role, Set password ticked and a password generated, so the field, Generate, Copy and reveal controls are live. No scrolling needed at the canonical height.",
+      "callout": [
+        474,
+        1702,
+        646,
+        132
+      ],
+      "redact": [
+        [
+          1035,
+          455,
+          135,
+          44
+        ]
+      ]
+    },
+    {
+      "name": "remove-role-confirm",
+      "dir": "usage",
+      "state": "Alter role, Remove role -- the dependency pre-flight. Read-only; captured WITHOUT confirming. Cancel, never Remove role.",
+      "redact": [
+        [
+          1035,
+          455,
+          135,
+          44
+        ]
+      ],
+      "scrolls": true
+    },
+    {
+      "name": "run-status-chip",
+      "dir": "usage",
+      "skip": "needs a real executed batch (DDL against live clusters); existing asset kept"
+    },
+    {
+      "name": "run-status-dialog",
+      "dir": "usage",
+      "skip": "needs a real executed batch (DDL against live clusters); existing asset kept"
+    },
+    {
+      "name": "run-queries-dialog",
+      "dir": "usage",
+      "skip": "needs a real executed batch (DDL against live clusters); existing asset kept"
+    },
+    {
+      "name": "create-role-partial-failure",
+      "dir": "usage",
+      "skip": "needs a real batch where one cluster fails; existing asset kept"
+    }
+  ]
+}
