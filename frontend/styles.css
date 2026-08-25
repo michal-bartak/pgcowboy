@@ -59,6 +59,15 @@
   --control-h: 2.1rem;
   --control-pad-y: 0.4rem;
   --control-pad-x: 0.55rem;
+  /* The air above and below a full-height control's TEXT, on the text-box path only (see the
+     @supports block after .segmented). There it is the padding itself, so it is the whole story;
+     --control-pad-y still pads a LINE BOX for input/select/textarea and must keep its value.
+     Derived, not picked: P = (H - cap - 2*border) / 2 against the measured field height, snapped to
+     a multiple of 4/7 px so P*1.75 is an integer and the painted air is equal above and below at
+     every sub-pixel position. 34/49 rem = 9.714px, P*1.75 = 17 exactly, and it reproduces the field
+     height to within 0.09px. Only 175% is exact: a value snapping at EVERY scaling has to be a
+     multiple of 4px, and none of those lands near the control height. */
+  --control-air: calc(1rem * 34 / 49);
   /* Width of a Settings list editor (role parents / comment fields / Find-role columns) AND of
      the .settings-field that wraps one — the two must agree, or the field would size to its
      content and the editor's 100% would resolve against that. */
@@ -82,13 +91,16 @@
      engine reports at that size: (fontBoxAscent - fontBoxDescent - capHeight) / 2. Measured
      against painted pixels — 0.82rem: 0.455px (0.040em, hence this token); 0.75rem: 0.30px;
      --fs-base 0.9rem: 0.06px, i.e. nothing. So it is applied as asymmetric padding, in em, ONLY
-     to the small-font elements (button.small, .ph-chip, .pick-chip). Full-height buttons take
-     NO lift: they run at --fs-base, and min-height contributes nothing to the problem (a button
-     centres its line box in its content box and splits the min-height slack evenly). An earlier
-     0.086em on them was an overcorrection — it pushed labels ~1px ABOVE centre and out of step
-     with .tab / .seg-btn, which are symmetric. Uppercase pills measured only 0.03em (sub-pixel)
-     and are left alone — lifting THEIR text is what would make the checkbox read low; see
-     --checkbox-lift. */
+     to the small-font elements (button.small, .ph-chip, .pick-chip). An earlier 0.086em on
+     full-height buttons was an overcorrection — it pushed labels ~1px ABOVE centre and out of
+     step with .tab / .seg-btn. Uppercase pills measured only 0.03em (sub-pixel) and are left
+     alone — lifting THEIR text is what would make the checkbox read low; see --checkbox-lift.
+     EVERY number above is a macOS system-ui measurement, and that is the token's limit: the
+     quantity is per-FONT, not per-size. On Segoe UI it is 0.062em, so the "nothing" at --fs-base
+     is really ~2 device px at 175% — which is why full-height controls no longer rely on this
+     token at all but are centred structurally, by text-box (see the @supports block after
+     .segmented), and why .chip is likewise excluded from it. What is left here is the three
+     small-font elements, still carrying a constant that is only right on one platform. */
   --ink-lift: 0.042em;         /* chips and min-height:0 buttons — NOT full-height buttons */
   /* The Target-selection checkbox reads low against its group chip. Both boxes are centred to
      the same device row, so this is optical, not geometric — hence a small explicit nudge
@@ -417,7 +429,10 @@ main { flex: 1 1 auto; min-height: 0; overflow: hidden; }
 button {
   min-height: var(--control-h);
   /* Symmetric, and matching the input/select rule above so a button and a field in the same row
-     line up. At --fs-base the cap band already centres to within 0.06px — see --ink-lift. */
+     line up. This is the FALLBACK geometry: where the engine has text-box, the @supports block
+     after .segmented replaces the vertical half of it and centres the label on its cap band
+     instead. The old note here — that at --fs-base the cap band already centres to within
+     0.06px — held only for macOS system-ui; on Segoe UI it is out by ~2 device px at 175%. */
   padding: var(--control-pad-y) 0.85rem;
   border-radius: var(--radius);
   border: var(--hairline) solid var(--border);
@@ -1110,6 +1125,60 @@ tr:last-child td { border-bottom: none; }
 .segmented .seg-btn:hover:not(:disabled) { color: var(--text); border-color: var(--border); }
 .segmented .seg-btn.active { background: var(--primary); color: #fff; }
 .segmented .seg-btn:disabled { color: var(--muted); opacity: 0.4; cursor: default; }
+/* ONE height and ONE centring rule for every full-height text control. Three reported bugs met
+   here, and they are one cause with two faces.
+   The TEXT sat low because nothing sets line-height on a control -- body declares none, so all of
+   these inherit `normal`, which is font-defined. The browser centres that LINE box, which reserves
+   the font's full descent, so the cap band lands low by
+   (fontAscent - fontDescent - capHeight)/2: 0.03em on macOS SF but 0.062em on Segoe UI. Measured at
+   175%, a button painted 19 device px of air above the caps against 16 below. Trimming the line box
+   to the text's own edges makes the content box BE the ink, so the padding is the air on both sides
+   and the label is centred for ANY font with nothing to tune -- the same fix as .chip, whose
+   @supports block carries the full derivation of the snap.
+   The HEIGHTS disagreed for two further reasons, both about where the border sits. Every other
+   control keeps its border INSIDE its box (box-sizing: border-box), so:
+     button    hairline on itself  -> 2P + cap + 2B
+     .tab      border: none        -> 2P + cap, i.e. 2B short. It gets a TRANSPARENT border here --
+                                      the trick .chip already uses: the border is always present and
+                                      only its colour changes.
+     .seg-btn  none; the .segmented WRAPPER carries it -> 2B + (2P + cap), the identical sum, so it
+                                      needs no compensating padding once its min-height is gone.
+   The visible frame-to-ink gap is therefore P in all three cases. Measured before: button, input
+   and select 30.625px, .tab 31.143px, .segmented 31.679px. After, all three controls are 30.536px
+   against a field's 30.625px -- 0.09px apart, the price of a height that follows cap height instead
+   of a line box.
+   Three things not to undo:
+   - min-height: 0 is REQUIRED, not tidiness. Leave --control-h in place and a font with a smaller
+     cap makes the computed height fall short, min-height takes over, and the ink is centred in the
+     slack again -- exactly the line-box centring being removed here. Note it is already not what
+     wins: at --fs-base a Segoe UI line box is ~16.8px, which is why the controls measured 30.6px
+     rather than the 29.4px --control-h nominally sets.
+   - padding-block, never the `padding` shorthand: the three kinds have deliberately different
+     horizontal padding (0.85rem / 1rem / 0.9rem) and it has to survive.
+   - the bare `button` selector is safe. Every opt-out (.icon-btn, .scope-act, .le-del, .pw-gen,
+     .pw-toggle, .info-btn, .about-x, .q-hint) carries class specificity and keeps its own
+     height/padding whatever the source order, and each is an inline-flex wrapping an SVG with no
+     text, so the trim is a no-op on it. The reset list below is only the inline-block TEXT buttons
+     that opt out of full height: their padding survives on specificity but text-box would not, and
+     three of them carry --ink-lift, so trimming would double-correct them.
+   An engine without text-box skips the block and renders exactly as the rules above, so the
+   WebKit 16 / WebKitGTK 2.38 floor is unchanged. The block must stay AFTER .tab and
+   .segmented .seg-btn -- it overrides them at equal specificity, on source order. */
+@supports (text-box: trim-both cap alphabetic) {
+  button,
+  .tab,
+  .segmented .seg-btn {
+    text-box: trim-both cap alphabetic;
+    min-height: 0;
+    padding-block: var(--control-air);
+  }
+  .tab { border: var(--hairline) solid transparent; }
+  button.small,
+  .about-check,
+  .clusters-toggle,
+  .ph-chip,
+  .pick-chip { text-box: normal; }
+}
 
 .settings-section-head {
   display: flex;
