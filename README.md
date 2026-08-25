@@ -4,31 +4,16 @@ A cross-platform desktop app for maintaining **PostgreSQL roles across many clus
 
 <img src="docs/src/assets/usage/operations-overview-light.png" width="50%">
 
-📖 **[Full documentation](https://michal-bartak.github.io/pgcowboy/)**
-
 ## Quick start
 
-Download the installer for your platform from the [Releases page](../../releases) — `.dmg` (macOS), `.msi` (Windows), `.deb` or `.rpm` (Linux) — then follow the [Installation guide](https://michal-bartak.github.io/pgcowboy/installation/) for platform notes and how credentials are resolved (an optional per-cluster user/password, else `PGUSER`/`PGPASSWORD`, else `~/.pgpass`, like `psql`).
+Download from the [Releases page](../../releases)
 
-Requires macOS 12+, Windows 10/11 (WebView2), or Linux with WebKitGTK 2.38+ — see [System requirements](https://michal-bartak.github.io/pgcowboy/installation/#system-requirements).
+Runs on: macOS 12+, Windows 10+, or Linux, see [System requirements](https://michal-bartak.github.io/pgcowboy/installation/#system-requirements).
 
-What changed in each version: [CHANGELOG.md](CHANGELOG.md).
+📖 **[Full documentation](https://michal-bartak.github.io/pgcowboy/)**
 
-**Developers:**
 
-```bash
-git clone https://github.com/michal-bartak/pgcowboy.git
-cd pgcowboy
-go mod tidy
-make dev
-```
-
-See [Building from source](https://michal-bartak.github.io/pgcowboy/building/) for requirements and `make` targets.
 
 ## License
 
-MIT © 2026 Michal Bartak.
-
----
-
-*Built by Michal Bartak, assisted by [Claude](https://claude.ai).*
+[MIT](./LICENSE) © 2026 Michal Bartak.
