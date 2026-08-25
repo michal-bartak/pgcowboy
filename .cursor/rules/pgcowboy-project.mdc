@@ -166,7 +166,13 @@ off centre by `(fontBoxAscent - fontBoxDescent - capHeight) / 2` — measured 0.
 = the 0.042em token, but only 0.06px at `--fs-base`, so it goes on the small-font elements
 (`button.small`, `.ph-chip`, `.pick-chip`) and **full-height buttons stay symmetric** like
 `.tab`/`.seg-btn`; `min-height` is not a factor, and the removed `--ink-lift-control: 0.086em`
-overcorrected buttons by ~1px — don't reintroduce it; uppercase pills excluded); `.chip` is the exception that proves it: the miscentring is per-font, so the chip is
+overcorrected buttons by ~1px — don't reintroduce it; uppercase pills excluded); The numbers are macOS-only and the quantity is per-FONT, not per-size (0.062em on Segoe UI),
+so `.chip` AND every full-height control are centred structurally instead, by
+`text-box: trim-both cap alphabetic` behind `@supports` — for controls that is the block after
+`.segmented`, giving `button`/`.tab`/`.segmented .seg-btn` one height (`min-height: 0` +
+`padding-block: var(--control-air)`, 34/49 rem so P·1.75 = 17), with `.tab` taking a transparent
+border and `.segmented`'s wrapper border standing in for the button's own. `--ink-lift` now
+survives only on `button.small`/`.ph-chip`/`.pick-chip`. The chip case:
 centred structurally instead, by `text-box: trim-both cap alphabetic` behind `@supports` (the
 padding edge becomes the ink edge, making `P` the padding itself and the snap exact; engines
 without it keep the old centring, so the WebKit 16 / WebKitGTK 2.38 floor is unchanged).
