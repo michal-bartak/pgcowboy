@@ -1058,6 +1058,70 @@ test('runStatusSummary: takes an explicit state, so the two chips stay independe
   assert.equal(r.bare.text, r.footer.text); // the default argument still means runState
 });
 
+// --- Clusters page: Test connections (short cell label + its own footer chip) ------------------
+test('buildStatusState(rows, "queued"): seeds a not-yet-run state, chip counts from 0', () => {
+  const r = evalJSON(`(() => {
+    const st = buildStatusState([{ clusterId: 'c1', alias: 'a' }, { clusterId: 'c2', alias: 'b' }], 'queued');
+    const before = runStatusSummary(st);
+    // Patch one row the way testAllClusters does as each test settles.
+    const row = st.byId.get('c1');
+    row.phase = 'done';
+    Object.assign(currentSegment(row), { status: 'ok', message: 'connected', durationMs: 7 });
+    return { phases: st.order.map((id) => st.byId.get(id).phase), before, mid: runStatusSummary(st) };
+  })()`);
+  assert.deepEqual(r.phases, ['done', 'queued']); // only the patched row is done
+  assert.deepEqual(r.before, { stateClass: 'running', text: 'Status: running… (0/2)' });
+  assert.deepEqual(r.mid, { stateClass: 'running', text: 'Status: running… (1/2)' });
+});
+
+test('testAllClusters: short OK/Error in the cell, the full error in the chip state', async () => {
+  const r = await evalJSONAsync(`(async () => {
+    // Fake Status cells so setClusterStatus has something to write to.
+    const cells = { c1: { dataset:{statusFor:'c1'} }, c2: { dataset:{statusFor:'c2'} } };
+    document.querySelectorAll = (sel) =>
+      sel === '#clusters-table td.cluster-status' ? Object.values(cells) : [];
+    window.go = { main: { App: {
+      TestConnectionInput: async (input) => {
+        if (input.host === 'down') throw 'connect to prod-1: dial tcp 10.0.0.9:5432: connect: connection refused';
+      },
+    } } };
+    state = { clusters: [], categories: [] };
+    clustersDraft = [
+      { id: 'c1', alias: 'prod-1', host: 'down', port: 5432, database: 'postgres', category: 'prod' },
+      { id: 'c2', alias: 'uat-1', host: 'up', port: 5432, database: 'postgres', category: 'uat' },
+    ];
+    clusterTestState = null;
+    await testAllClusters();
+    const rowOf = (id) => {
+      const row = clusterTestState.byId.get(id);
+      return { alias: row.alias, category: row.category, phase: row.phase,
+               status: rowStatus(row), message: rowMessage(row), timed: rowDurationMs(row) >= 0 };
+    };
+    return {
+      cells: Object.fromEntries(Object.entries(cells).map(([id, c]) =>
+        [id, { text: c.textContent, title: c.title, cls: c.className }])),
+      rows: { c1: rowOf('c1'), c2: rowOf('c2') },
+      summary: runStatusSummary(clusterTestState),
+    };
+  })()`);
+  // The cell says one word; the message survives in the tooltip and in the chip's state.
+  assert.deepEqual(r.cells.c1, {
+    text: 'Error',
+    title: 'connect to prod-1: dial tcp 10.0.0.9:5432: connect: connection refused',
+    cls: 'cluster-status status-error',
+  });
+  assert.deepEqual(r.cells.c2, { text: 'OK', title: 'connected', cls: 'cluster-status status-ok' });
+  assert.deepEqual(r.rows.c1, {
+    alias: 'prod-1', category: 'prod', phase: 'done', status: 'error',
+    message: 'connect to prod-1: dial tcp 10.0.0.9:5432: connect: connection refused', timed: true,
+  });
+  assert.deepEqual(r.rows.c2, {
+    alias: 'uat-1', category: 'uat', phase: 'done', status: 'ok', message: 'connected', timed: true,
+  });
+  // Alias/group come from the DRAFT rows, so an unsaved cluster is not reported as its tmp id.
+  assert.deepEqual(r.summary, { stateClass: 'error', text: 'Status: Error (1/2 failed)' });
+});
+
 test('groupMatches: works on the flattened per-cluster matches (no error rows to skip any more)', () => {
   const r = evalJSON(`(() => {
     const scanned = [
@@ -1330,10 +1394,12 @@ test('stripClusterPrefix: the alias is not repeated in a table that has a Cluste
   assert.equal(r[3], 'connect to uat-2: x');                  // no alias → nothing to strip
 });
 
-test('statusRowOrder: the status table is ordered by configured group, then alias', () => {
+test('statusRowOrder: the status table is ordered by group NAME, then alias', () => {
   const r = evalJSON(`(() => {
-    // Configured order is prod, then uat (deliberately NOT alphabetical by label).
+    // Configured order is prod, then uat — deliberately NOT the order the names sort in, so the
+    // two rules are distinguishable (this table follows the names, like the Clusters table).
     state = { categories: [{ id: 'prod', label: 'Production' }, { id: 'uat', label: 'Alpha UAT' }] };
+    categoriesDraft = null;
     // Insertion order = the order results arrived in, which is what we are replacing.
     const st = buildStatusState([
       { clusterId: 'u2', alias: 'uat-9',  category: 'uat',     status: 'ok' },
@@ -1345,23 +1411,38 @@ test('statusRowOrder: the status table is ordered by configured group, then alia
     return { arrived: st.order, displayed: statusRowOrder(st) };
   })()`);
   assert.deepEqual(r.arrived, ['u2', 'p2', 'x1', 'u1', 'p1']); // as reported by the backend
-  // prod before uat (configured order), alias within each group, unknown group last.
-  assert.deepEqual(r.displayed, ['p1', 'p2', 'u1', 'u2', 'x1']);
+  // 'Alpha UAT' before 'Production' (by name, not config order), alias within each group,
+  // a group that no longer exists last — and an error is NOT sorted differently from an ok row.
+  assert.deepEqual(r.displayed, ['u1', 'u2', 'p1', 'p2', 'x1']);
 });
 
-test('byGroupThenAlias: configured group order wins over the label, alias breaks ties', () => {
+test('byGroupThenAlias: the group NAME orders the list, alias breaks ties, orphans last', () => {
   const r = evalJSON(`(() => {
     state = { categories: [{ id: 'zeta', label: 'Zeta' }, { id: 'alpha', label: 'Alpha' }] };
+    categoriesDraft = null;
     const sort = (rows) => rows.slice().sort(byGroupThenAlias).map((c) => c.alias);
     return {
-      groups: sort([{ category: 'alpha', alias: 'a' }, { category: 'zeta', alias: 'b' }]),
+      groups: sort([{ category: 'zeta', alias: 'b' }, { category: 'alpha', alias: 'a' }]),
       aliases: sort([{ category: 'zeta', alias: 'b' }, { category: 'zeta', alias: 'a' }]),
       unknownLast: sort([{ category: 'nope', alias: 'a' }, { category: 'zeta', alias: 'z' }]),
     };
   })()`);
-  assert.deepEqual(r.groups, ['b', 'a']);      // zeta is configured first, despite 'Alpha' < 'Zeta'
+  assert.deepEqual(r.groups, ['a', 'b']);      // 'Alpha' < 'Zeta', though zeta is configured first
   assert.deepEqual(r.aliases, ['a', 'b']);     // same group → alias
-  assert.deepEqual(r.unknownLast, ['z', 'a']); // a group no longer configured sorts last
+  assert.deepEqual(r.unknownLast, ['z', 'a']); // no name to sort by ⇒ last, not sorted by slug
+});
+
+test('byGroupThenAlias: an unsaved group sorts by its draft name, not its slug', () => {
+  const r = evalJSON(`(() => {
+    // 'aaa-new' would sort first by slug; its NAME (Zulu) puts it last.
+    state = { categories: [{ id: 'prod', label: 'Production' }] };
+    categoriesDraft = [{ id: 'prod', label: 'Production' }, { id: 'aaa-new', label: 'Zulu' }];
+    const rows = [{ category: 'aaa-new', alias: 'new-1' }, { category: 'prod', alias: 'prod-1' }];
+    return { order: rows.slice().sort(byGroupThenAlias).map((c) => c.alias),
+             label: categoryLabel('aaa-new') };
+  })()`);
+  assert.deepEqual(r.order, ['prod-1', 'new-1']);
+  assert.equal(r.label, 'Zulu'); // and the chip shows the name, not the slug
 });
 
 test('closeModal: drops the focus the UA restores after a pointer-driven open, keeps it for keyboard', () => {

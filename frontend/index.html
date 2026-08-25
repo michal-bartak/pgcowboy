@@ -122,6 +122,12 @@
         </div>
       </div>
       <div class="clusters-footer">
+        <!-- Test-connections outcome: the same chip as the Operations footer / Find-role popup,
+             with its own state; the table's Status cell stays a short OK/Error label. -->
+        <button type="button" id="cluster-test-status" class="run-status hidden" aria-live="polite" title="Show per-cluster status">
+          <span class="run-status-icon" aria-hidden="true"></span>
+          <span class="run-status-text"></span>
+        </button>
         <p id="clusters-error" class="form-error hidden"></p>
         <button type="button" id="btn-discard-clusters" disabled>Discard</button>
         <button type="button" id="btn-save-clusters" class="primary" disabled>Save</button>

@@ -94,7 +94,8 @@ into prose, it goes stale.
   their slug id immediately so clusters can reference them pre-save. **Only the Clusters editor
   reads the drafts** — Operations target selection / run resolution keep reading saved `state`, so
   unsaved cluster edits never affect what a run targets. `Test connections` tests the on-screen
-  draft values via `TestConnectionInput`, writing per-row Status.
+  draft values via `TestConnectionInput`, writing a short per-row Status **and** its own footer
+  status chip (see the Test-connections decision below).
 - **No corner toast — feedback goes to the action button or inline.** There is no `showToast`.
   Simple confirmations **flash the action button** ("Saved"/"Created", green, ~1.2 s via
   `flashButton`); Save buttons are **enabled only when there are changes, disabled (inert) when
@@ -264,8 +265,8 @@ into prose, it goes stale.
   (`reconcilePendingWithUniverse`).
 - **Per-cluster presence editor (Alter).** The static **Present on** block (`#role-present`, a
   sibling of `#alter-detail` with its own click listener) shows existing clusters (plain chips),
-  pending-**add** (`chip-scope-add`: a leading `+`, group colour kept via `data-cat`) and
-  pending-**remove** (`chip-scope-strike`: red strikethrough, `data-cat` dropped) plus a **✎** button
+  pending-**add** (`chip-add`: a leading `+`, group colour kept via `data-cat`) and
+  pending-**remove** (`chip-strike`: red strikethrough, `data-cat` dropped) plus a **✎** button
   (`#btn-present-edit`) that opens the scope dialog with `ctx.kind === 'presence'`. Adding a
   cluster inserts a **synthetic `exists:false` row** into `alterDetails` (empty baseline, like
   `synthCreateBaseline`) so the whole form (privileges/attributes/settings/comment editors) targets
@@ -289,13 +290,13 @@ into prose, it goes stale.
   batch entirely; **Try anyway** sends the normal `remove_role`.
   **Popup layout — three ordered sections** (`depsTier`: 0 clean / 1 check failed / 2 has
   dependencies; empty ones omitted), each under a small-uppercase `.alter-privs-label` subheader,
-  ordered inside by **configured category order then alias** (`depsSortRows` over the shared
-  `byGroupThenAlias`, same category rule as `describeScope` — not the alphabetical sort
-  `renderClustersTable` uses): **No dependencies** = a
+  ordered inside by **group name then alias** (`depsSortRows` over the shared
+  `byGroupThenAlias` — the same rule `renderClustersTable` and the status table use; the *chips* of
+  one row keep `describeScope`'s configured-category order instead): **No dependencies** = a
   `.deps-chips` row of chips only; **Could not be checked** = a `Cluster | Error | Skip/Try` table;
   **Dependencies found** = per cluster a header line (chip + count + toggle) plus its own table.
   A cluster is identified by ONE group-coloured chip via the shared `scopeLabelsHtml` — there is no
-  alias text and no `.badge`. Every dependency table is `table-layout:fixed` and shares one
+  alias text and no separate badge class (see the ONE `.chip` decision). Every dependency table is `table-layout:fixed` and shares one
   `depsColgroup(rows)` — the three short columns sized in `ch` to the widest value across **all**
   clusters (capped, + `1.5rem` cell padding), Object left bare to absorb the rest — so columns line
   up across clusters. The `<h2>` carries, after the `?`: **Reload** (`#deps-reload` → `reloadDeps`,
@@ -727,6 +728,67 @@ on the same device row. All three are single values — retune, don't sweep.
 role form's sections, About), sized by `--fs-section`. It replaced five near-identical rules that
 had drifted to three letter-spacings; it sets no `display`/`margin`, so each context opts in.
 
+**`.chip` is the ONE group/cluster pill**, plus a kind modifier: **`.chip-group`** (outlined +
+uppercase — a whole group matched, and every group label outside the role form) or
+**`.chip-cluster`** (filled tint — one cluster of a group), with `.chip-strike` for a pending revoke
+and `.chip-add` needing no rule (its `+` is in the markup). It covers Target selection, the
+Clusters / Cluster-groups / Run-status tables and every scope label in the role form (Role Parents,
+Attributes, Settings, Present on, search rows, dependency pre-flight), all emitted by
+`scopeLabelsHtml`. It replaced `.badge` + `.chip-scope`, which had drifted to **four heights** —
+21.8 / 19.6 / 15.4 / 13.4px — and the per-group colour generator (`renderCategoryColors`) lost a
+rule with it, since `.badge[data-cat]` and the group-kind scope label were byte-identical. Four
+things in that rule are load-bearing, don't undo them:
+(1) **`line-height` is explicit** — `normal` is font-dependent and an inherited *number* resizes the
+pill, which is the whole reason the Target-selection chip was 2.2px taller than the identical chip
+in a table (`.checkbox-group` sets `1.35`);
+(2) **the border is always present and only its colour changes**, so an outlined and a filled chip
+are the same height — `border: none` on the filled kind is what made it 2px shorter than the
+outlined one beside it in one row (it also means `.chip-strike` need only set `color`: the group
+kind's `currentColor` border turns red by itself, the filled kind stays outline-less);
+(3) **the pill carries real vertical air** because an **underscore is drawn 1.41px below the
+baseline** at `--fs-xs` (`UAT_ReplicaDWH`: 2.16px) — with the old 0.05rem padding that ink crowded
+the bottom edge and the label read low, which was the reported bug. The text is **not** nudged to
+compensate: a per-label optical lift would put neighbouring chips' text on different lines, and
+uppercase labels measure centred to 0.02px as they are;
+(4) **`--chip-pad-y: 0.1225rem` is derived, not chosen.** Device-pixel rounding acts on `P`, the
+padding-edge-to-ink distance: painted air is `round((top+P)·dpr) − round(top·dpr)`, which is
+independent of the pill's per-row position (that is what made one `PRODUCTION` chip differ from
+another) **exactly when `P·dpr` is an integer**; the border doesn't enter, its device width being
+deterministic per DPI. Covering 100/125/150/175/200% at once needs `P·1.25` and `P·1.75` integral,
+so **`P` must be a multiple of 4 CSS px** — and for a given `P` the pill height is fixed, leaving
+`P=4` (17.5px, this) and `P=8` (25.7px) as the only candidates. `P = pad-y + half-leading +
+(ascent − cap height)`, so **changing `line-height` requires re-deriving `--chip-pad-y`**; it is
+tuned at the shipped 87.5% density against macOS `system-ui` (Segoe UI lands ~0.1px off), and losing
+the exactness costs only the row-to-row stability. The **size exception** is the two lists where a
+group is the row's own **subject** rather than an annotation on something else —
+`#category-checkboxes .chip` (Target selection's *group* rows) and `#groups-table .chip` (the
+Cluster groups editor) — both 21.5px, and deliberately not snap-tuned, each of those rows carrying
+exactly one chip so there is no sibling to be compared against. Everywhere a group chip *annotates*
+something else takes the shared size: the Clusters table, the secondary cluster list, Run status,
+every scope label in the role form. That subject-vs-annotation split is the criterion for a new
+list, so extend the selector rather than inventing a size.
+
+(5) **`text-box: trim-both cap alphabetic` behind `@supports` is what actually centres the
+label.** Points (1)-(4) size the *pill*; they do not place the *text* in it. A browser centres the
+**line box**, which reserves the font's full descent, so the cap band lands low by
+`(fontAscent - fontDescent - capHeight)/2` -- a **per-font** quantity, which is why one constant
+cannot fix it and why `.chip` is excluded from `--ink-lift`: 0.03em on macOS SF, but **0.062em on
+Segoe UI**, leaving 4.58px of air above the caps against 3.50px below -- ~2 device px at 175%
+scaling. That was the reported bug, invisible on the Mac the token was tuned on. Trimming the line
+box to the text's own edges makes the content box *be* the ink, so the padding edge is the ink edge
+and the label is centred for **any** font with nothing to tune. Three consequences: **`P` is no
+longer a sum but the padding itself**, so (4)'s snap becomes exact rather than approximate -- and it
+now holds on Windows, where the old `P` measured 4.32, not 4; `--chip-pad-y` is restated as the air
+itself (`calc(1rem * 2 / 7)` = 4px shared, `calc(1rem * 3 / 7)` = 6px subject -- a decimal literal
+must err **high**, since `0.2857rem` x 1.75 = 6.99965 flips a device pixel); and the pill stops
+caring about `line-height` at all, inherited or not, so (1) is moot on this path. Measured 7/7
+device px of air at every sub-pixel offset. The **subject** chips cannot be snapped (only multiples
+of 4px are, and 4px/8px are the wrong sizes), so 6px is exact at 100/150/200% and jitters one device
+px at 125/175% -- still better than the ~2 they were off by. An engine without `text-box` skips the
+block and renders as (1)-(4) did, so the **WebKit 16 / WebKitGTK 2.38 floor is unchanged** -- it
+simply keeps the old centring, which is equally why the fix does not reach an older WebKitGTK. Keep
+the id-specificity exception **repeated inside** the block, and the block **after** it.
+
 **App shell**: header + tabs bar are fixed (`body` is a flex column, `overflow:hidden`,
 no page scroll); `main` fills the rest. Each panel manages its own scroll. Operations is
 a two-column grid — left `.ops-sidebar` and right `.ops-main` scroll **independently**;
@@ -743,12 +805,35 @@ Settings & Clusters `[Discard] [Save]` right-aligned; Remove role renders left o
 `.ops-footer .alter-actions{justify-content:flex-end}` + `#btn-alter-remove{order:-1}` — `order`
 is the whole mechanism, and both rules now sit together). A button opts out to the LEFT of a
 right-aligned row with `margin-right:auto` (Test connection, `#fn-dialog-default`,
-`#search-status`). The **Test connections** button lives in the tabs bar's Clusters action group
-(`btn-test-clusters` → `testAllClusters`): it tests every configured cluster and
-writes the outcome into a per-row **Status** column (`setClusterStatus`). Cluster rows have
+`#search-status`, `#cluster-test-status`). The **Test connections** button lives in the tabs bar's
+Clusters action group (`btn-test-clusters` → `testAllClusters`): it tests every configured cluster
+and reports **two ways**, because the Status column is a fixed `9ch` track and a connection error is
+a sentence. The **cell carries a one-word label only** — `OK` / `Error` / `testing…` in
+`.status-ok`/`.status-error`/`.status-pending`, with the full message as its `title`
+(`setClusterStatus`, which takes the message but renders the label) — and the **detail goes to a
+footer status chip**, `#cluster-test-status` in `.clusters-footer`, a third independent state
+(`clusterTestState`) alongside `runState`/`searchState`, painted by `renderClusterTestStatus` →
+the shared `paintStatusChip`, opening the shared `#run-status-dialog` whose **Message column is the
+flexible one**. It is seeded from `clustersDraft` (**not** `beginRunStatus`, which resolves
+alias/host/group from *saved* clusters and would print an unsaved row's `tmp_<n>` id) via
+`buildStatusState(rows, 'queued')` — the phase argument is the whole generalization — then each row
+is patched as its test settles, so the chip counts `running… (k/N)`. Durations are timed
+frontend-side (`Date.now()`, `TestConnectionInput` returns only an `error`), and `queries` stays
+empty, so the popup's magnifier is inert. Following the `searchState` precedent it is **not** in
+`clearRunStatus`: the state belongs to the run that produced it and is reset by the next one (the
+chip lives inside `#panel-clusters`, so it cannot bleed onto another page). `renderClustersTable`
+rebuilds every row, so it ends by calling `restoreClusterStatuses()` to repaint the finished cells
+from that state — otherwise any add/edit/delete blanked the column while the chip still said Error.
+`#run-status-dialog` labels and sorts a group by name via `categoryLabel`, which falls back to the
+**draft** label, so a cluster in a not-yet-saved group is not reported under its slug; the table
+itself keeps `draftCategoryLabel` (draft-first), because it must sort by the name it prints — the
+two differ only for a group renamed and not yet saved. Cluster rows have
 no per-row Test button (testing on-screen values is done from the cluster editor via
 `TestConnectionInput`); each row's **Actions** cell holds right-aligned **✎ edit** / **× delete**
 icon buttons (`.scope-act`, same as the role form) in a `.row-actions` flex.
+`.clusters-footer` therefore mirrors `.ops-footer`: its `.form-error` takes a full-width row
+(`flex-basis:100%; order:-1`) so the chip alone holds the left slot — `.settings-footer` keeps the
+old `margin-right:auto` error, which is why that one grouped rule is now split.
 
 Top tabs **Operations / Clusters / Settings**, with **one right-aligned action group per page** in
 the same bar: `.tab-actions` boxes carrying **Create role** / **Alter role** (`#op-tabs`) and
@@ -866,7 +951,8 @@ The header is a `.brand` row (accent dot + smaller title + version chip + round 
   `reloadDetails`) and owns the footer chip. Clicking it opens the shared `#run-status-dialog`:
   `openRunStatusDialog(rs)` records `statusDialogState`, and `runStatusSummary(rs)` /
   `renderRunStatusDialog(rs)` / the row magnifier+copy all read the state they were given, so the
-  two chips never bleed into each other. `searchState` is cleared by `openSearchDialog` (it belongs
+  two chips never bleed into each other (the Clusters page's `clusterTestState` is the third).
+  `searchState` is cleared by `openSearchDialog` (it belongs
   to the search that produced it); `clearRunStatus` still owns `runState` only.
   **Failures are a one-liner, never a list** — `searchFailureLine(failed, total)` in
   `#alter-search-errors` ("2 of 5 clusters could not be searched — click Status for details."), with
@@ -889,8 +975,8 @@ The header is a `.brand` row (accent dot + smaller title + version chip + round 
   `×` when nothing is granted/pending, `↺` when there are no pending changes.
   `buildAlterClusterOps` groups each cluster's ops into one transactional batch (all of a
   cluster's enable/disable attribute keywords combine into a single `set_attribute`);
-  Pending state is rendered by `scopeLabelsHtml`'s two variants only — `chip-scope-add`
-  (leading `+`, group colour kept) for a pending grant/enable and `chip-scope-strike` (red
+  Pending state is rendered by `scopeLabelsHtml`'s two variants only — `chip-add`
+  (leading `+`, group colour kept) for a pending grant/enable and `chip-strike` (red
   strikethrough) for a pending revoke/disable — never a green fill, and never for an
   attribute that is simply off (that's `.scope-off`, de-emphasised).
 - **Settings** (role GUCs) reuse the same row/scope-editor as attributes but keyed by
@@ -938,10 +1024,13 @@ The header is a `.brand` row (accent dot + smaller title + version chip + round 
   `renderRunStatus`, state in `runState`). The chip is **button-sized, neutral-colored, and
   glyph-free** (spinner only while running; the *word* OK/Error carries the result — no ✓/✕).
   Clicking it opens `#run-status-dialog` (columns Cluster/Category/Status/Duration/Message +
-  actions; **no Host column**), live while running. Rows are **ordered by configured group then
-  alias** — `statusRowOrder(rs)` sorts at render with the shared `byGroupThenAlias`, so the table is
+  actions; **no Host column**), live while running. Rows are **ordered by group name then alias**
+  — `statusRowOrder(rs)` sorts at render with the shared `byGroupThenAlias`, so the table is
   stable regardless of the order clusters were queued in or results arrived in, for **every** use of
-  it (runs, role loads, search). Each done row's actions cell has a
+  it (runs, role loads, search, connection tests), and reads in the same order as the Clusters
+  table. **Status is never a sort key** — a failed cluster stays where its group and alias put it
+  (the deps popup's `depsTier` grouping is the one deliberate exception). A group that no longer
+  exists has no name, so it sorts last (`groupRank`) rather than by its slug. Each done row's actions cell has a
   **magnifier** (`.rst-view`) that opens a separate, larger `#run-queries-dialog` listing that
   cluster's executed SQL (`ClusterResult.Queries`/`ClusterProgress.Queries` — the queries are
   NOT shown inline in the table) and a **copy button** (`.rst-copy`) that copies the cluster's

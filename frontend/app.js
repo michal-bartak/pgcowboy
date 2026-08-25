@@ -603,22 +603,35 @@ async function loadConfig() {
 
 function categoryLabel(id) {
   const c = state?.categories?.find((x) => x.id === id);
-  return c?.label || id;
+  // Fall back to the Clusters drafts: a group that exists only unsaved still has a name, which
+  // beats printing (and sorting by) its slug in the status table.
+  return c?.label || categoriesDraft?.find((x) => x.id === id)?.label || id;
 }
 
-/** Sort index of a cluster group: its position in the CONFIGURED category order (unknown last),
- *  the same rule describeScope uses for scope chips — not alphabetical by label. */
+/** Sort index of a cluster group: its position in the CONFIGURED category order (unknown last).
+ *  Orders the scope CHIPS of one row (describeScope) — cluster LISTS sort by group name instead,
+ *  see byGroupThenAlias. */
 function categoryOrderIndex(id) {
   const i = (state?.categories || []).findIndex((c) => c.id === id);
   return i < 0 ? 999 : i;
 }
 
-/** The one ordering rule for cluster lists — configured group order, then alias. Shared by the
- *  status table (every usage of it) and the pre-flight dependency popup. Takes anything
- *  cluster-shaped: {category, alias}. */
+/** 0 for a configured group (saved or draft), 1 for one that no longer exists — such a group has
+ *  no name to sort by, so it goes last instead of sorting by its slug. */
+function groupRank(id) {
+  const known =
+    state?.categories?.some((c) => c.id === id) || categoriesDraft?.some((c) => c.id === id);
+  return known ? 0 : 1;
+}
+
+/** The one ordering rule for cluster lists — group NAME (the label on screen), then alias. Shared
+ *  by the status table (every usage of it), the search results and the pre-flight dependency popup,
+ *  and it is the rule the Clusters table sorts by, so the same clusters read the same way
+ *  everywhere. Takes anything cluster-shaped: {category, alias}. */
 function byGroupThenAlias(a, b) {
   return (
-    categoryOrderIndex(a?.category) - categoryOrderIndex(b?.category) ||
+    groupRank(a?.category) - groupRank(b?.category) ||
+    (categoryLabel(a?.category) || '').localeCompare(categoryLabel(b?.category) || '') ||
     (a?.alias || '').localeCompare(b?.alias || '')
   );
 }
@@ -642,7 +655,7 @@ function hexToRgba(hex, a) {
   return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${a})`;
 }
 
-/** Generate per-group colour rules (badges, scope labels, checkbox highlight). */
+/** Generate per-group colour rules (chips, checkbox highlight). */
 function renderCategoryColors() {
   let el = document.getElementById('cat-colors');
   if (!el) {
@@ -657,9 +670,8 @@ function renderCategoryColors() {
       const hex = c.color || DEFAULT_CAT_COLOR;
       const id = (window.CSS && CSS.escape) ? CSS.escape(c.id) : c.id;
       return [
-        `.badge[data-cat="${id}"]{color:${hex};background:transparent;border-color:${hex}}`,
-        `.chip-scope.scope-kind-group[data-cat="${id}"]{color:${hex};background:transparent;border-color:${hex}}`,
-        `.chip-scope.scope-kind-cluster[data-cat="${id}"]{color:${hex};background:${hexToRgba(hex, 0.16)}}`,
+        `.chip-group[data-cat="${id}"]{color:${hex};background:transparent;border-color:${hex}}`,
+        `.chip-cluster[data-cat="${id}"]{color:${hex};background:${hexToRgba(hex, 0.16)}}`,
         `.checkbox-group label[data-category="${id}"]:has(input:checked){border-color:${hex};background:${hexToRgba(hex, 0.18)}}`,
       ].join('');
     })
@@ -680,7 +692,8 @@ const FLEX_COL_MIN_CH = 12;
  * Character counts only — no text measuring, same approach as depsColgroup.
  */
 function tableTrack(sp) {
-  // + 1.5rem for the th/td horizontal padding (.75rem each side); a chip adds its own.
+  // + 1.5rem for the th/td horizontal padding (.75rem each side); a chip adds its own
+  // (.chip's --chip-pad-x is .55rem each side plus its border, so 1.5rem has room to spare).
   const pad = sp.chip ? 3 : 1.5;
   if (sp.width) return { css: sp.width, ch: 0, rem: parseFloat(sp.width) || 0 };
   if (sp.flex) return { css: null, ch: FLEX_COL_MIN_CH, rem: pad };
@@ -769,7 +782,7 @@ function renderGroupsTable() {
     const delTitle = used ? `In use by ${used} cluster${used === 1 ? '' : 's'}` : 'Delete group';
     const tr = document.createElement('tr');
     tr.innerHTML = `
-      <td><span class="badge" data-cat="${escapeAttr(c.id)}">${escapeHtml(c.label)}</span></td>
+      <td><span class="chip chip-group" data-cat="${escapeAttr(c.id)}">${escapeHtml(c.label)}</span></td>
       <td>${c.confirm ? 'Yes' : '—'}</td>
       <td>
         <div class="row-actions">
@@ -824,8 +837,10 @@ function renderClustersTable() {
     tbody.innerHTML = '<tr><td colspan="7" class="hint">No clusters configured.</td></tr>';
     return;
   }
-  // Display order: Category (asc) then Alias (asc), by the visible Category label. Sort a copy
-  // so clustersDraft's own order (dirty-diff + Save) is untouched.
+  // Display order: the byGroupThenAlias rule — group name then alias — but keyed on the DRAFT
+  // label, which is the name this table actually shows (a group renamed but not yet saved must
+  // sort where it is printed). Sort a copy so clustersDraft's own order (dirty-diff + Save) is
+  // untouched.
   const rows = [...clustersDraft].sort(
     (a, b) =>
       draftCategoryLabel(a.category).localeCompare(draftCategoryLabel(b.category)) ||
@@ -838,7 +853,7 @@ function renderClustersTable() {
       <td title="${escapeAttr(c.host)}">${escapeHtml(c.host)}</td>
       <td>${c.port}</td>
       <td title="${escapeAttr(c.database)}">${escapeHtml(c.database)}</td>
-      <td><span class="badge" data-cat="${escapeAttr(c.category)}">${escapeHtml(draftCategoryLabel(c.category))}</span></td>
+      <td><span class="chip chip-group" data-cat="${escapeAttr(c.category)}">${escapeHtml(draftCategoryLabel(c.category))}</span></td>
       <td class="cluster-status" data-status-for="${escapeAttr(c.id)}"></td>
       <td>
         <div class="row-actions">
@@ -851,6 +866,7 @@ function renderClustersTable() {
   tbody.querySelectorAll('button').forEach((btn) => {
     btn.addEventListener('click', onClusterAction);
   });
+  restoreClusterStatuses();
 }
 
 /**
@@ -865,7 +881,7 @@ function applyClusterColumns(rows) {
     { header: 'Port', values: rows.map((c) => c.port), cap: 6 },
     { header: 'Database', values: rows.map((c) => c.database), cap: 20 },
     { header: 'Group', values: rows.map((c) => draftCategoryLabel(c.category)), cap: 16, chip: true },
-    { header: 'Status', min: 12 },
+    { header: 'Status', min: 9 }, // a short OK/Error/testing… label, never the message
     { width: '5.5rem' },
   ]);
 }
@@ -879,7 +895,7 @@ function renderCategoryCheckboxes() {
     // null selection = default "all checked"; otherwise honor the remembered set.
     const checked = selectedCategoryIds === null || selectedCategoryIds.has(cat.id);
     label.innerHTML = `<input type="checkbox" name="category" value="${escapeAttr(cat.id)}" ${checked ? 'checked' : ''} />
-      <span class="badge" data-cat="${escapeAttr(cat.id)}">${escapeHtml(cat.label)}</span>`;
+      <span class="chip chip-group" data-cat="${escapeAttr(cat.id)}">${escapeHtml(cat.label)}</span>`;
     box.appendChild(label);
     label.querySelector('input')?.addEventListener('change', onTargetChange);
   }
@@ -894,7 +910,7 @@ function renderClusterCheckboxes() {
     const checked = selectedClusterIds.has(c.id);
     label.innerHTML = `<input type="checkbox" name="cluster" value="${escapeAttr(c.id)}" ${checked ? 'checked' : ''} />
       <span class="target-cluster-text">${escapeHtml(c.alias)} <span class="target-cluster-host">(${escapeHtml(c.host)})</span></span>
-      <span class="badge" data-cat="${escapeAttr(c.category)}">${escapeHtml(categoryLabel(c.category))}</span>`;
+      <span class="chip chip-group" data-cat="${escapeAttr(c.category)}">${escapeHtml(categoryLabel(c.category))}</span>`;
     box.appendChild(label);
     label.querySelector('input')?.addEventListener('change', onTargetChange);
   }
@@ -1284,7 +1300,11 @@ function renderDBFunctionsRow(key) {
  *  SearchRoles, while the role-detail load happens later (pickUser → reloadDetails) and owns the
  *  footer chip. Lives and dies with the search dialog. */
 let searchState = null;
-/** Which state #run-status-dialog is currently showing (`runState` or `searchState`). */
+/** Status state for the Clusters page's Test-connections chip. Independent of `runState` /
+ *  `searchState` — a different page and a different run; reset by each new test run. */
+let clusterTestState = null;
+/** Which state #run-status-dialog is currently showing (`runState`, `searchState` or
+ *  `clusterTestState`). */
 let statusDialogState = null;
 
 // ---- Run status (footer chip + #run-status-dialog) ----
@@ -1498,10 +1518,17 @@ function renderSearchStatus() {
   refreshStatusDialogFor(searchState);
 }
 
-/** Build a finished status state from per-cluster read rows — one unnamed, already-done segment
- *  each. Pure, so it is unit-testable; used by the search (a one-shot read, unlike a batch run
- *  which fills its state incrementally from progress events). */
-function buildStatusState(rows) {
+/** Update the Clusters footer chip (Test connections), independent of the other two. */
+function renderClusterTestStatus() {
+  paintStatusChip(document.getElementById('cluster-test-status'), clusterTestState);
+  refreshStatusDialogFor(clusterTestState);
+}
+
+/** Build a status state from per-cluster rows — one unnamed segment each. Pure, so it is
+ *  unit-testable; used by the search (a one-shot read, unlike a batch run which fills its state
+ *  incrementally from progress events) and, with phase 'queued', to seed the Test-connections chip
+ *  before its rows are patched one at a time. */
+function buildStatusState(rows, phase = 'done') {
   const byId = new Map();
   const order = [];
   for (const r of rows || []) {
@@ -1509,7 +1536,7 @@ function buildStatusState(rows) {
       alias: r.alias || r.clusterId,
       host: r.host || '',
       category: r.category || '',
-      phase: 'done',
+      phase,
       segments: [{
         name: '',
         status: r.status || '',
@@ -1604,7 +1631,7 @@ function renderRunStatusDialog(rs = statusDialogState) {
     const shownMessage = stripClusterPrefix(message, r.alias);
     tr.innerHTML = `
       <td title="${escapeAttr(r.alias)}">${escapeHtml(r.alias)}</td>
-      <td><span class="badge" data-cat="${escapeAttr(r.category)}">${escapeHtml(categoryLabel(r.category))}</span></td>
+      <td><span class="chip chip-group" data-cat="${escapeAttr(r.category)}">${escapeHtml(categoryLabel(r.category))}</span></td>
       <td>${statusCell}</td>
       <td>${r.phase === 'done' ? rowDurationMs(r) + ' ms' : ''}</td>
       <td title="${escapeAttr(shownMessage)}">${escapeHtml(shownMessage)}</td>
@@ -2275,18 +2302,31 @@ async function enterAlterAfterCreate(login) {
   updateOpsFooter();
 }
 
-/** Update the inline Status cell for a cluster row on the Clusters page. */
+/**
+ * Update the inline Status cell for a cluster row on the Clusters page. The cell shows a SHORT
+ * label only — its track is fixed (see applyClusterColumns), so a connection error would just be
+ * ellipsized; the full message goes to the tooltip and to the footer chip's popup.
+ */
 function setClusterStatus(id, status, message) {
   const cell = [...document.querySelectorAll('#clusters-table td.cluster-status')]
     .find((td) => td.dataset.statusFor === id);
   if (!cell) return;
   const cls = status === 'ok' ? 'status-ok' : status === 'error' ? 'status-error' : 'status-pending';
+  const label = status === 'ok' ? 'OK' : status === 'error' ? 'Error' : 'testing…';
   cell.className = `cluster-status ${cls}`;
-  cell.textContent = message;
-  cell.title = message;
+  cell.textContent = label;
+  cell.title = message || label;
 }
 
-/** Test every configured cluster and show the result inline in the table. */
+/** Repaint the Status cells of finished clusters from the last test run (rows are rebuilt on every
+ *  renderClustersTable, which would otherwise blank them while the footer chip still says Error). */
+function restoreClusterStatuses() {
+  for (const [id, r] of clusterTestState?.byId || []) {
+    if (r.phase === 'done') setClusterStatus(id, rowStatus(r), rowMessage(r));
+  }
+}
+
+/** Test every configured cluster: a short label per row, the detail in the footer status chip. */
 async function testAllClusters() {
   const errEl = document.getElementById('clusters-error');
   const btn = document.getElementById('btn-test-clusters');
@@ -2301,7 +2341,15 @@ async function testAllClusters() {
   }
   if (btn) btn.disabled = true;
   clusters.forEach((c) => setClusterStatus(c.id, 'pending', 'testing…'));
-  let ok = 0;
+  // Seeded from the DRAFT rows, not beginRunStatus: that resolves alias/host/group from the SAVED
+  // clusters, so an unsaved row would show up as its tmp_<n> id.
+  clusterTestState = buildStatusState(
+    clusters.map((c) => ({
+      clusterId: c.id, alias: c.alias, host: c.host, category: c.category,
+    })),
+    'queued'
+  );
+  renderClusterTestStatus();
   let failed = 0;
   for (const c of clusters) {
     const input = {
@@ -2309,17 +2357,29 @@ async function testAllClusters() {
       category: c.category, sslMode: c.sslmode, connectUser: c.connectUser,
       password: c.password || '',
     };
+    const started = Date.now();
+    let message = '';
+    let status = 'ok';
     try {
       await app.TestConnectionInput(input, { user: c.connectUser || '', password: '' });
-      setClusterStatus(c.id, 'ok', 'connected');
-      ok += 1;
+      message = 'connected';
     } catch (e) {
-      setClusterStatus(c.id, 'error', String(e));
+      status = 'error';
+      message = String(e);
       failed += 1;
     }
+    setClusterStatus(c.id, status, message);
+    // A connection test runs no SQL, so the row keeps its empty `queries` (the popup's magnifier
+    // stays inert, as it does for any query-less row).
+    const row = clusterTestState.byId.get(c.id);
+    if (row) {
+      row.phase = 'done';
+      Object.assign(currentSegment(row), { status, message, durationMs: Date.now() - started });
+    }
+    renderClusterTestStatus();
   }
   if (btn) btn.disabled = false;
-  // Per-row Status column carries the detail; the button flash summarises pass/fail.
+  // The chip carries the outcome; the flash is just "this button is done".
   flashButton(btn, failed ? { cls: 'flash-err' } : { cls: 'flash-ok' });
 }
 
@@ -2981,13 +3041,13 @@ function scopeLabelsHtml(parts, extraCls = '') {
   // Added labels keep data-cat (so the per-group colour applies) and are flagged with a leading
   // "+"; removed labels drop data-cat so the red strikethrough overlay wins; normal labels carry
   // data-cat for their group colour.
-  const isStrike = extraCls === 'chip-scope-strike';
-  const isAdd = extraCls === 'chip-scope-add';
+  const isStrike = extraCls === 'chip-strike';
+  const isAdd = extraCls === 'chip-add';
   return parts
     .map((p) => {
       const cat = isStrike ? '' : ` data-cat="${escapeAttr(p.cat)}"`;
       const name = (isAdd ? '+' : '') + p.label;
-      return `<span class="chip-scope scope-kind-${p.kind} ${extraCls}"${cat}>${escapeHtml(name)}</span>`;
+      return `<span class="chip chip-${p.kind} ${extraCls}"${cat}>${escapeHtml(name)}</span>`;
     })
     .join('');
 }
@@ -3324,8 +3384,8 @@ function renderAlterDetail() {
     const addIds = new Set(alterDetails.filter((d) => !d.exists).map((d) => d.clusterId));
     const presentLabels =
       scopeLabelsHtml(describeScope(presentIds)) +
-      scopeLabelsHtml(describeScope(addIds), 'chip-scope-add') +
-      scopeLabelsHtml(describeScope(new Set(roleRemoveClusters)), 'chip-scope-strike');
+      scopeLabelsHtml(describeScope(addIds), 'chip-add') +
+      scopeLabelsHtml(describeScope(new Set(roleRemoveClusters)), 'chip-strike');
     present.innerHTML =
       `<span class="section-label">Present on</span>` +
       `<button type="button" class="scope-act" id="btn-present-edit" title="Add / remove role on clusters" aria-label="Add / remove role on clusters">${ICONS.edit}</button>` +
@@ -3552,8 +3612,8 @@ function scopeRowHtml(kind, key, name, curSet, addSet, revSet) {
   const emptyNote = kind === 'attr' ? '<span class="hint scope-off">off</span>' : '<span class="hint">none</span>';
 
   const keptLabels = scopeLabelsHtml(describeScope(kept));
-  const addLabels = addSet.size ? scopeLabelsHtml(describeScope(addSet), 'chip-scope-add') : '';
-  const revLabels = revSet.size ? scopeLabelsHtml(describeScope(revSet), 'chip-scope-strike') : '';
+  const addLabels = addSet.size ? scopeLabelsHtml(describeScope(addSet), 'chip-add') : '';
+  const revLabels = revSet.size ? scopeLabelsHtml(describeScope(revSet), 'chip-strike') : '';
   const labels = keptLabels + addLabels + revLabels || emptyNote;
 
   // All three actions always render as square buttons beside the row; the ones that don't
@@ -4337,6 +4397,9 @@ document.getElementById('deps-dialog')?.addEventListener('cancel', (ev) => {
 
 document.getElementById('run-status')?.addEventListener('click', () => openRunStatusDialog(runState));
 document.getElementById('search-status')?.addEventListener('click', () => openRunStatusDialog(searchState));
+document
+  .getElementById('cluster-test-status')
+  ?.addEventListener('click', () => openRunStatusDialog(clusterTestState));
 document.getElementById('run-status-dialog-close')?.addEventListener('click', () => {
   closeModal('run-status-dialog');
 });

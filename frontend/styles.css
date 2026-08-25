@@ -403,12 +403,15 @@ main { flex: 1 1 auto; min-height: 0; overflow: hidden; }
 /* Clusters + Settings share the same padded panel + inset (up-to-margins) footer divider. */
 #panel-clusters, #panel-settings { padding: 1rem var(--page-pad); }
 #panel-clusters .table-wrap { flex: 1 1 auto; min-height: 0; }
-/* Staged editor footer: Discard/Save on the right, inline error on the left; border-top inset
-   to the panel content (not the full window). */
+/* Staged editor footer: Discard/Save on the right, inline error to their left (Clusters puts it on
+   its own row — see below); border-top inset to the panel content (not the full window). */
 .clusters-footer,
 .settings-footer { flex: none; display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: center; justify-content: flex-end; border-top: var(--hairline) solid var(--border); padding: 0.75rem 0 0; margin-top: 0.75rem; }
-.clusters-footer .form-error,
 .settings-footer .form-error { margin: 0; margin-right: auto; }
+/* Clusters has a status chip in that left slot (like .ops-footer), so its error line takes a row
+   of its own above the chip + buttons instead of competing for the slack. */
+.clusters-footer .form-error { flex-basis: 100%; order: -1; margin: 0 0 0.25rem; }
+#cluster-test-status { margin-right: auto; }
 .settings-body { flex: 1 1 auto; min-height: 0; }
 
 button {
@@ -538,19 +541,110 @@ tr:last-child td { border-bottom: none; }
   color: var(--muted);
 }
 
-/* Group badge = outlined (transparent + border), matching the group scope chips. Per-group
-   colours are generated into #cat-colors from state.categories. */
-.badge {
+/* THE chip. Every group/cluster pill in the app is this class plus a kind: Target selection, the
+   Clusters / Cluster-groups / Run-status tables, and every scope label in the role form (Role
+   Parents, Attributes, Settings, Present on, search results, dependency pre-flight). It replaced
+   .badge + .chip-scope, which had drifted to FOUR heights — 21.8 / 19.6 / 15.4 / 13.4px. Four
+   things here are load-bearing:
+   - `line-height` is EXPLICIT. `normal` is font-dependent, and an inherited NUMBER resizes the
+     pill: .checkbox-group's 1.35 is the entire reason the Target-selection chip was 2.2px taller
+     than the identical chip in a table.
+   - the border is ALWAYS present and only its COLOUR changes, so an outlined and a filled chip are
+     the same height. `border: none` on the filled kind is what made it 2px shorter than the
+     outlined one beside it in the same row.
+   - the pill needs real vertical air, because an underscore is drawn 1.41px below the baseline at
+     this size (UAT_ReplicaDWH: 2.16px, a descender-bearing alias: 2.18px). With 0.05rem of padding
+     that ink crowded the bottom edge and the label read low — the reported bug. Text is NOT nudged
+     to compensate: a per-label lift would put neighbouring chips' text on different lines, which is
+     worse than an underscore hanging.
+   - --chip-pad-y is DERIVED, not chosen. The distance from the padding edge to the ink, P, is what
+     device-pixel rounding acts on: painted air = round((top+P)*dpr) − round(top*dpr), which is
+     independent of the pill's per-row position exactly when P*dpr is an integer (the border does
+     not enter — its device width is deterministic per DPI, not per row). Covering
+     100/125/150/175/200% at once needs P*1.25 and P*1.75 integral, so P must be a multiple of 4 CSS
+     px — and for a given P the pill HEIGHT is fixed (P + ink + P + borders), so P=4 (this, 17.5px)
+     and P=8 (25.7px) are the only candidates. P = pad-y + half-leading + (ascent − cap height) =
+     1.715 + 0.0375 + 2.25 ≈ 4, which is why the value is 0.1225rem and not something round:
+     CHANGING line-height REQUIRES re-deriving it. Tuned at the shipped density (html 87.5%)
+     against macOS system-ui; Segoe UI lands ~0.1px off. Losing the exactness costs nothing but the
+     row-to-row stability. (On the text-box path below, P is simply the padding, so none of this
+     re-derivation applies there — see the @supports block after the size exception.) */
+.chip {
+  --chip-pad-y: 0.1225rem;
+  --chip-pad-x: 0.55rem;
   display: inline-block;
-  padding: 0.2rem 0.55rem;
-  border-radius: 999px;
+  flex-shrink: 0;
+  white-space: nowrap;
   font-size: var(--fs-xs);
   font-weight: 600;
-  text-transform: uppercase;
-  flex-shrink: 0;
-  border: var(--hairline) solid currentColor;
-  background: transparent;
+  line-height: 1.15;
+  padding: var(--chip-pad-y) var(--chip-pad-x);
+  border: var(--hairline) solid transparent;
+  border-radius: 999px;
   color: var(--muted);
+}
+/* Whole group matched, and every group label outside the role form: outlined + uppercase, matching
+   the bordered group boxes in Target selection. Per-group colours are generated into #cat-colors
+   from state.categories and land on these two kind classes. */
+.chip-group { text-transform: uppercase; background: transparent; border-color: currentColor; }
+/* One cluster of a group: filled, no visible outline (the transparent border only holds height). */
+.chip-cluster { background: rgba(154, 163, 181, 0.18); }
+/* A pending grant (chip-add) keeps its group colour via data-cat and is flagged with a leading "+"
+   in the markup, so it needs no rule. A pending revoke drops data-cat and is struck through in red:
+   only `color` changes, so .chip-group's currentColor border turns red by itself and .chip-cluster
+   stays outline-less — the same asymmetry as before, in one declaration. */
+.chip-strike { text-decoration: line-through; opacity: 0.7; color: var(--danger); background: transparent; }
+/* The size exception: the two lists where a GROUP is the row's own subject rather than an annotation
+   on something else — Target selection's group rows and the Cluster groups editor. The chip is the
+   row's identity there, so it keeps the larger 21.5px. Deliberately NOT snap-tuned (P = 5.95): each
+   of these rows carries exactly ONE chip, so there is no sibling beside it for a row-to-row
+   difference to show against; P = 8 (0.408rem, 25.7px) would make it stable. Everywhere a group chip
+   annotates something else — the Clusters table, the secondary cluster list (#cluster-checkboxes),
+   Run status, the role form — takes the shared size. */
+#category-checkboxes .chip,
+#groups-table .chip { --chip-pad-y: 0.265rem; }
+/* Where the engine can trim the line box to the text's own edges, do that instead of centring it.
+   The content box becomes exactly cap-top → alphabetic baseline, so the padding edge IS the ink
+   edge and the label is centred for ANY font, with no constant to tune. That is the point: the
+   miscentring is font-DEPENDENT — (fontAscent − fontDescent − capHeight)/2 — while --ink-lift is
+   one constant measured against macOS system-ui, which is why .chip was excluded from it. At chip
+   size that error is 0.03em on SF but 0.062em on Segoe UI, which left 4.58px of air above the caps
+   against 3.50px below — 1.08px of asymmetry, painting as ~2 device px at 175% scaling. That was
+   the reported bug, and it is invisible on the Mac the token was tuned on.
+   Three consequences worth knowing:
+   - P stops being a SUM (pad + half-leading + (ascent − cap)) and becomes the padding itself, so
+     the snap above is now exact instead of approximate — and it holds on every platform. It never
+     did on Windows: the old P measures 4.32 there, not 4.
+   - --chip-pad-y is therefore restated as the air itself, 4px shared and 6px for the subject chips.
+     calc(1rem * N / 7) is exact at the shipped density (14 * N / 7); a decimal literal would have
+     to err HIGH (0.2857143rem) and never low — 0.2857rem is 3.9998px, and 3.9998 * 1.75 = 6.99965
+     flips a device pixel when the pill's top lands on a half-pixel, which is the very jitter the
+     snap exists to prevent.
+   - the pill stops caring about line-height at all, inherited or not, so point (1) above is moot
+     here: .checkbox-group's 1.35 grows the untrimmed pill to 19.6px and leaves the trimmed one at
+     17.4px.
+   The shared chip measures 7/7 device px of air at all eight sub-pixel offsets at 175% — exact and
+   position-independent, which is the whole point. The SUBJECT chips below cannot have that: P must
+   be a multiple of 4 CSS px to snap at every scaling, and 4px is the shared size while 8px makes a
+   25.6px pill, so neither keeps them merely-larger. 6px is the best of the rest — exact at
+   100/150/200%, one device px of jitter at 125/175% (6 × 1.75 = 10.5 sits dead on a rounding
+   boundary; measured 10/11 ↔ 11/10 across offsets). That is strictly better than the ~2 device px
+   they were off by before, and it is the same tolerance the note above already grants them for
+   row-to-row stability. calc(1rem * 22 / 49) = 6.286px is the alternative: 11/11 exact at 175%, but
+   it gives up 100/150/200% to buy it.
+   Heights shift by a fraction of a pixel (17.79 → 17.63, 21.77 → 21.63) since the box is now
+   cap-height-driven rather than line-height-driven. An engine without text-box skips the block and
+   renders exactly as the rules above, so the WebKit 16 / WebKitGTK 2.38 floor is unchanged — such
+   an engine simply keeps the old centring. Two things not to undo: the id-specificity exception
+   MUST be repeated in here (#category-checkboxes .chip beats a bare .chip whatever the source
+   order), and this block must stay AFTER it. */
+@supports (text-box: trim-both cap alphabetic) {
+  .chip {
+    text-box: trim-both cap alphabetic;
+    --chip-pad-y: calc(1rem * 2 / 7); /* 4px — under trim the padding IS the air, above and below */
+  }
+  #category-checkboxes .chip,
+  #groups-table .chip { --chip-pad-y: calc(1rem * 3 / 7); } /* 6px */
 }
 
 .status-ok { color: var(--ok); }
@@ -1445,31 +1539,6 @@ button.flash-fade { transition: background .8s ease, border-color .8s ease, colo
 }
 .alter-section > .section-label { display: block; margin-bottom: 0.5rem; }
 
-/* Scope-label colours are generated per group into #cat-colors (keyed by data-cat); the colour
-   and background here are the neutral fallback for a label without a matching group. */
-.chip-scope {
-  font-size: var(--fs-xs);
-  font-weight: 600;
-  text-transform: none;
-  color: var(--muted);
-  background: rgba(154, 163, 181, 0.18);
-  border-radius: 999px;
-  padding: 0.05rem 0.4rem;
-}
-/* Whole group matched: outlined + uppercase (like the bordered group boxes in Target
-   selection). One cluster of a group: filled, no border. */
-.chip-scope.scope-kind-group { text-transform: uppercase; background: transparent; border: var(--hairline) solid currentColor; }
-.chip-scope.scope-kind-cluster { border: none; }
-/* A pending grant (chip-scope-add) keeps its group colour via data-cat and is flagged with a
-   leading "+" in the markup, so it needs no rule here. A pending revoke drops data-cat and is
-   struck through in red. */
-.chip-scope-strike {
-  text-decoration: line-through;
-  opacity: 0.7;
-  color: var(--danger);
-  background: transparent;
-  border-color: var(--danger);
-}
 /* Privilege/attribute rows: [ name | labels ]  ✎ × ↺  (actions outside the row box) */
 .scope-rows { display: grid; gap: 0.35rem; }
 .scope-line { display: flex; align-items: stretch; gap: 0.35rem; }

@@ -10,6 +10,12 @@ versioning: [SemVer](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- **Chips** — one size everywhere, improved text centering
+- **Test connections** — the Status column shows OK/Error, the detail moved to a footer status chip
+- **Execution status** — clusters ordered by group name then alias, like the Clusters table
+
 ## [1.1.2] - 2026-08-20
 
 ### Fixed
