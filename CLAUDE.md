@@ -264,8 +264,8 @@ into prose, it goes stale.
   (`reconcilePendingWithUniverse`).
 - **Per-cluster presence editor (Alter).** The static **Present on** block (`#role-present`, a
   sibling of `#alter-detail` with its own click listener) shows existing clusters (plain chips),
-  pending-**add** (`chip-scope-add`: a leading `+`, group colour kept via `data-cat`) and
-  pending-**remove** (`chip-scope-strike`: red strikethrough, `data-cat` dropped) plus a **✎** button
+  pending-**add** (`chip-add`: a leading `+`, group colour kept via `data-cat`) and
+  pending-**remove** (`chip-strike`: red strikethrough, `data-cat` dropped) plus a **✎** button
   (`#btn-present-edit`) that opens the scope dialog with `ctx.kind === 'presence'`. Adding a
   cluster inserts a **synthetic `exists:false` row** into `alterDetails` (empty baseline, like
   `synthCreateBaseline`) so the whole form (privileges/attributes/settings/comment editors) targets
@@ -295,7 +295,7 @@ into prose, it goes stale.
   `.deps-chips` row of chips only; **Could not be checked** = a `Cluster | Error | Skip/Try` table;
   **Dependencies found** = per cluster a header line (chip + count + toggle) plus its own table.
   A cluster is identified by ONE group-coloured chip via the shared `scopeLabelsHtml` — there is no
-  alias text and no `.badge`. Every dependency table is `table-layout:fixed` and shares one
+  alias text and no separate badge class (see the ONE `.chip` decision). Every dependency table is `table-layout:fixed` and shares one
   `depsColgroup(rows)` — the three short columns sized in `ch` to the widest value across **all**
   clusters (capped, + `1.5rem` cell padding), Object left bare to absorb the rest — so columns line
   up across clusters. The `<h2>` carries, after the `?`: **Reload** (`#deps-reload` → `reloadDeps`,
@@ -727,6 +727,46 @@ on the same device row. All three are single values — retune, don't sweep.
 role form's sections, About), sized by `--fs-section`. It replaced five near-identical rules that
 had drifted to three letter-spacings; it sets no `display`/`margin`, so each context opts in.
 
+**`.chip` is the ONE group/cluster pill**, plus a kind modifier: **`.chip-group`** (outlined +
+uppercase — a whole group matched, and every group label outside the role form) or
+**`.chip-cluster`** (filled tint — one cluster of a group), with `.chip-strike` for a pending revoke
+and `.chip-add` needing no rule (its `+` is in the markup). It covers Target selection, the
+Clusters / Cluster-groups / Run-status tables and every scope label in the role form (Role Parents,
+Attributes, Settings, Present on, search rows, dependency pre-flight), all emitted by
+`scopeLabelsHtml`. It replaced `.badge` + `.chip-scope`, which had drifted to **four heights** —
+21.8 / 19.6 / 15.4 / 13.4px — and the per-group colour generator (`renderCategoryColors`) lost a
+rule with it, since `.badge[data-cat]` and the group-kind scope label were byte-identical. Four
+things in that rule are load-bearing, don't undo them:
+(1) **`line-height` is explicit** — `normal` is font-dependent and an inherited *number* resizes the
+pill, which is the whole reason the Target-selection chip was 2.2px taller than the identical chip
+in a table (`.checkbox-group` sets `1.35`);
+(2) **the border is always present and only its colour changes**, so an outlined and a filled chip
+are the same height — `border: none` on the filled kind is what made it 2px shorter than the
+outlined one beside it in one row (it also means `.chip-strike` need only set `color`: the group
+kind's `currentColor` border turns red by itself, the filled kind stays outline-less);
+(3) **the pill carries real vertical air** because an **underscore is drawn 1.41px below the
+baseline** at `--fs-xs` (`UAT_ReplicaDWH`: 2.16px) — with the old 0.05rem padding that ink crowded
+the bottom edge and the label read low, which was the reported bug. The text is **not** nudged to
+compensate: a per-label optical lift would put neighbouring chips' text on different lines, and
+uppercase labels measure centred to 0.02px as they are;
+(4) **`--chip-pad-y: 0.1225rem` is derived, not chosen.** Device-pixel rounding acts on `P`, the
+padding-edge-to-ink distance: painted air is `round((top+P)·dpr) − round(top·dpr)`, which is
+independent of the pill's per-row position (that is what made one `PRODUCTION` chip differ from
+another) **exactly when `P·dpr` is an integer**; the border doesn't enter, its device width being
+deterministic per DPI. Covering 100/125/150/175/200% at once needs `P·1.25` and `P·1.75` integral,
+so **`P` must be a multiple of 4 CSS px** — and for a given `P` the pill height is fixed, leaving
+`P=4` (17.5px, this) and `P=8` (25.7px) as the only candidates. `P = pad-y + half-leading +
+(ascent − cap height)`, so **changing `line-height` requires re-deriving `--chip-pad-y`**; it is
+tuned at the shipped 87.5% density against macOS `system-ui` (Segoe UI lands ~0.1px off), and losing
+the exactness costs only the row-to-row stability. The **size exception** is the two lists where a
+group is the row's own **subject** rather than an annotation on something else —
+`#category-checkboxes .chip` (Target selection's *group* rows) and `#groups-table .chip` (the
+Cluster groups editor) — both 21.5px, and deliberately not snap-tuned, each of those rows carrying
+exactly one chip so there is no sibling to be compared against. Everywhere a group chip *annotates*
+something else takes the shared size: the Clusters table, the secondary cluster list, Run status,
+every scope label in the role form. That subject-vs-annotation split is the criterion for a new
+list, so extend the selector rather than inventing a size.
+
 **App shell**: header + tabs bar are fixed (`body` is a flex column, `overflow:hidden`,
 no page scroll); `main` fills the rest. Each panel manages its own scroll. Operations is
 a two-column grid — left `.ops-sidebar` and right `.ops-main` scroll **independently**;
@@ -889,8 +929,8 @@ The header is a `.brand` row (accent dot + smaller title + version chip + round 
   `×` when nothing is granted/pending, `↺` when there are no pending changes.
   `buildAlterClusterOps` groups each cluster's ops into one transactional batch (all of a
   cluster's enable/disable attribute keywords combine into a single `set_attribute`);
-  Pending state is rendered by `scopeLabelsHtml`'s two variants only — `chip-scope-add`
-  (leading `+`, group colour kept) for a pending grant/enable and `chip-scope-strike` (red
+  Pending state is rendered by `scopeLabelsHtml`'s two variants only — `chip-add`
+  (leading `+`, group colour kept) for a pending grant/enable and `chip-strike` (red
   strikethrough) for a pending revoke/disable — never a green fill, and never for an
   attribute that is simply off (that's `.scope-off`, de-emphasised).
 - **Settings** (role GUCs) reuse the same row/scope-editor as attributes but keyed by

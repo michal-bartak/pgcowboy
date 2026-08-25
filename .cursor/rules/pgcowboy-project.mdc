@@ -87,7 +87,8 @@ templates: [`config.example.yaml`](config.example.yaml),
   confirm still fires inside `executeRoleBatch`. Layout = **three sections** (`depsTier`: clean →
   could-not-be-checked → has-dependencies, ordered inside by configured category order then alias
   via `depsSortRows`): chips only / a `Cluster|Error|Skip-Try` table / per-cluster header + table.
-  Clusters are labelled by ONE group-coloured `scopeLabelsHtml` chip (no alias text, no `.badge`);
+  Clusters are labelled by ONE group-coloured `scopeLabelsHtml` chip (no alias text, no separate
+  badge class — every pill in the app is the one `.chip` + `.chip-group`/`.chip-cluster`);
   all dependency tables are `table-layout:fixed` sharing one `depsColgroup` so columns line up. The
   `<h2>` holds `?` + **Reload** (`#deps-reload` → `reloadDeps`, re-reads the same clusters in place,
   keeping still-applicable Skip/Try picks via `mergeDepsChoices`) + ONE magnifier

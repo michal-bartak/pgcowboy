@@ -10,6 +10,10 @@ versioning: [SemVer](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- **Chips** — one size everywhere, and labels with underscores or descenders no longer crowd the pill's edge.
+
 ## [1.1.2] - 2026-08-20
 
 ### Fixed

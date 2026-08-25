@@ -538,20 +538,67 @@ tr:last-child td { border-bottom: none; }
   color: var(--muted);
 }
 
-/* Group badge = outlined (transparent + border), matching the group scope chips. Per-group
-   colours are generated into #cat-colors from state.categories. */
-.badge {
+/* THE chip. Every group/cluster pill in the app is this class plus a kind: Target selection, the
+   Clusters / Cluster-groups / Run-status tables, and every scope label in the role form (Role
+   Parents, Attributes, Settings, Present on, search results, dependency pre-flight). It replaced
+   .badge + .chip-scope, which had drifted to FOUR heights — 21.8 / 19.6 / 15.4 / 13.4px. Four
+   things here are load-bearing:
+   - `line-height` is EXPLICIT. `normal` is font-dependent, and an inherited NUMBER resizes the
+     pill: .checkbox-group's 1.35 is the entire reason the Target-selection chip was 2.2px taller
+     than the identical chip in a table.
+   - the border is ALWAYS present and only its COLOUR changes, so an outlined and a filled chip are
+     the same height. `border: none` on the filled kind is what made it 2px shorter than the
+     outlined one beside it in the same row.
+   - the pill needs real vertical air, because an underscore is drawn 1.41px below the baseline at
+     this size (UAT_ReplicaDWH: 2.16px, a descender-bearing alias: 2.18px). With 0.05rem of padding
+     that ink crowded the bottom edge and the label read low — the reported bug. Text is NOT nudged
+     to compensate: a per-label lift would put neighbouring chips' text on different lines, which is
+     worse than an underscore hanging.
+   - --chip-pad-y is DERIVED, not chosen. The distance from the padding edge to the ink, P, is what
+     device-pixel rounding acts on: painted air = round((top+P)*dpr) − round(top*dpr), which is
+     independent of the pill's per-row position exactly when P*dpr is an integer (the border does
+     not enter — its device width is deterministic per DPI, not per row). Covering
+     100/125/150/175/200% at once needs P*1.25 and P*1.75 integral, so P must be a multiple of 4 CSS
+     px — and for a given P the pill HEIGHT is fixed (P + ink + P + borders), so P=4 (this, 17.5px)
+     and P=8 (25.7px) are the only candidates. P = pad-y + half-leading + (ascent − cap height) =
+     1.715 + 0.0375 + 2.25 ≈ 4, which is why the value is 0.1225rem and not something round:
+     CHANGING line-height REQUIRES re-deriving it. Tuned at the shipped density (html 87.5%)
+     against macOS system-ui; Segoe UI lands ~0.1px off. Losing the exactness costs nothing but the
+     row-to-row stability. */
+.chip {
+  --chip-pad-y: 0.1225rem;
+  --chip-pad-x: 0.55rem;
   display: inline-block;
-  padding: 0.2rem 0.55rem;
-  border-radius: 999px;
+  flex-shrink: 0;
+  white-space: nowrap;
   font-size: var(--fs-xs);
   font-weight: 600;
-  text-transform: uppercase;
-  flex-shrink: 0;
-  border: var(--hairline) solid currentColor;
-  background: transparent;
+  line-height: 1.15;
+  padding: var(--chip-pad-y) var(--chip-pad-x);
+  border: var(--hairline) solid transparent;
+  border-radius: 999px;
   color: var(--muted);
 }
+/* Whole group matched, and every group label outside the role form: outlined + uppercase, matching
+   the bordered group boxes in Target selection. Per-group colours are generated into #cat-colors
+   from state.categories and land on these two kind classes. */
+.chip-group { text-transform: uppercase; background: transparent; border-color: currentColor; }
+/* One cluster of a group: filled, no visible outline (the transparent border only holds height). */
+.chip-cluster { background: rgba(154, 163, 181, 0.18); }
+/* A pending grant (chip-add) keeps its group colour via data-cat and is flagged with a leading "+"
+   in the markup, so it needs no rule. A pending revoke drops data-cat and is struck through in red:
+   only `color` changes, so .chip-group's currentColor border turns red by itself and .chip-cluster
+   stays outline-less — the same asymmetry as before, in one declaration. */
+.chip-strike { text-decoration: line-through; opacity: 0.7; color: var(--danger); background: transparent; }
+/* The size exception: the two lists where a GROUP is the row's own subject rather than an annotation
+   on something else — Target selection's group rows and the Cluster groups editor. The chip is the
+   row's identity there, so it keeps the larger 21.5px. Deliberately NOT snap-tuned (P = 5.95): each
+   of these rows carries exactly ONE chip, so there is no sibling beside it for a row-to-row
+   difference to show against; P = 8 (0.408rem, 25.7px) would make it stable. Everywhere a group chip
+   annotates something else — the Clusters table, the secondary cluster list (#cluster-checkboxes),
+   Run status, the role form — takes the shared size. */
+#category-checkboxes .chip,
+#groups-table .chip { --chip-pad-y: 0.265rem; }
 
 .status-ok { color: var(--ok); }
 .status-error { color: var(--danger); }
@@ -1445,31 +1492,6 @@ button.flash-fade { transition: background .8s ease, border-color .8s ease, colo
 }
 .alter-section > .section-label { display: block; margin-bottom: 0.5rem; }
 
-/* Scope-label colours are generated per group into #cat-colors (keyed by data-cat); the colour
-   and background here are the neutral fallback for a label without a matching group. */
-.chip-scope {
-  font-size: var(--fs-xs);
-  font-weight: 600;
-  text-transform: none;
-  color: var(--muted);
-  background: rgba(154, 163, 181, 0.18);
-  border-radius: 999px;
-  padding: 0.05rem 0.4rem;
-}
-/* Whole group matched: outlined + uppercase (like the bordered group boxes in Target
-   selection). One cluster of a group: filled, no border. */
-.chip-scope.scope-kind-group { text-transform: uppercase; background: transparent; border: var(--hairline) solid currentColor; }
-.chip-scope.scope-kind-cluster { border: none; }
-/* A pending grant (chip-scope-add) keeps its group colour via data-cat and is flagged with a
-   leading "+" in the markup, so it needs no rule here. A pending revoke drops data-cat and is
-   struck through in red. */
-.chip-scope-strike {
-  text-decoration: line-through;
-  opacity: 0.7;
-  color: var(--danger);
-  background: transparent;
-  border-color: var(--danger);
-}
 /* Privilege/attribute rows: [ name | labels ]  ✎ × ↺  (actions outside the row box) */
 .scope-rows { display: grid; gap: 0.35rem; }
 .scope-line { display: flex; align-items: stretch; gap: 0.35rem; }

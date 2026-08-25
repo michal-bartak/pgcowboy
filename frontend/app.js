@@ -642,7 +642,7 @@ function hexToRgba(hex, a) {
   return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${a})`;
 }
 
-/** Generate per-group colour rules (badges, scope labels, checkbox highlight). */
+/** Generate per-group colour rules (chips, checkbox highlight). */
 function renderCategoryColors() {
   let el = document.getElementById('cat-colors');
   if (!el) {
@@ -657,9 +657,8 @@ function renderCategoryColors() {
       const hex = c.color || DEFAULT_CAT_COLOR;
       const id = (window.CSS && CSS.escape) ? CSS.escape(c.id) : c.id;
       return [
-        `.badge[data-cat="${id}"]{color:${hex};background:transparent;border-color:${hex}}`,
-        `.chip-scope.scope-kind-group[data-cat="${id}"]{color:${hex};background:transparent;border-color:${hex}}`,
-        `.chip-scope.scope-kind-cluster[data-cat="${id}"]{color:${hex};background:${hexToRgba(hex, 0.16)}}`,
+        `.chip-group[data-cat="${id}"]{color:${hex};background:transparent;border-color:${hex}}`,
+        `.chip-cluster[data-cat="${id}"]{color:${hex};background:${hexToRgba(hex, 0.16)}}`,
         `.checkbox-group label[data-category="${id}"]:has(input:checked){border-color:${hex};background:${hexToRgba(hex, 0.18)}}`,
       ].join('');
     })
@@ -680,7 +679,8 @@ const FLEX_COL_MIN_CH = 12;
  * Character counts only — no text measuring, same approach as depsColgroup.
  */
 function tableTrack(sp) {
-  // + 1.5rem for the th/td horizontal padding (.75rem each side); a chip adds its own.
+  // + 1.5rem for the th/td horizontal padding (.75rem each side); a chip adds its own
+  // (.chip's --chip-pad-x is .55rem each side plus its border, so 1.5rem has room to spare).
   const pad = sp.chip ? 3 : 1.5;
   if (sp.width) return { css: sp.width, ch: 0, rem: parseFloat(sp.width) || 0 };
   if (sp.flex) return { css: null, ch: FLEX_COL_MIN_CH, rem: pad };
@@ -769,7 +769,7 @@ function renderGroupsTable() {
     const delTitle = used ? `In use by ${used} cluster${used === 1 ? '' : 's'}` : 'Delete group';
     const tr = document.createElement('tr');
     tr.innerHTML = `
-      <td><span class="badge" data-cat="${escapeAttr(c.id)}">${escapeHtml(c.label)}</span></td>
+      <td><span class="chip chip-group" data-cat="${escapeAttr(c.id)}">${escapeHtml(c.label)}</span></td>
       <td>${c.confirm ? 'Yes' : '—'}</td>
       <td>
         <div class="row-actions">
@@ -838,7 +838,7 @@ function renderClustersTable() {
       <td title="${escapeAttr(c.host)}">${escapeHtml(c.host)}</td>
       <td>${c.port}</td>
       <td title="${escapeAttr(c.database)}">${escapeHtml(c.database)}</td>
-      <td><span class="badge" data-cat="${escapeAttr(c.category)}">${escapeHtml(draftCategoryLabel(c.category))}</span></td>
+      <td><span class="chip chip-group" data-cat="${escapeAttr(c.category)}">${escapeHtml(draftCategoryLabel(c.category))}</span></td>
       <td class="cluster-status" data-status-for="${escapeAttr(c.id)}"></td>
       <td>
         <div class="row-actions">
@@ -879,7 +879,7 @@ function renderCategoryCheckboxes() {
     // null selection = default "all checked"; otherwise honor the remembered set.
     const checked = selectedCategoryIds === null || selectedCategoryIds.has(cat.id);
     label.innerHTML = `<input type="checkbox" name="category" value="${escapeAttr(cat.id)}" ${checked ? 'checked' : ''} />
-      <span class="badge" data-cat="${escapeAttr(cat.id)}">${escapeHtml(cat.label)}</span>`;
+      <span class="chip chip-group" data-cat="${escapeAttr(cat.id)}">${escapeHtml(cat.label)}</span>`;
     box.appendChild(label);
     label.querySelector('input')?.addEventListener('change', onTargetChange);
   }
@@ -894,7 +894,7 @@ function renderClusterCheckboxes() {
     const checked = selectedClusterIds.has(c.id);
     label.innerHTML = `<input type="checkbox" name="cluster" value="${escapeAttr(c.id)}" ${checked ? 'checked' : ''} />
       <span class="target-cluster-text">${escapeHtml(c.alias)} <span class="target-cluster-host">(${escapeHtml(c.host)})</span></span>
-      <span class="badge" data-cat="${escapeAttr(c.category)}">${escapeHtml(categoryLabel(c.category))}</span>`;
+      <span class="chip chip-group" data-cat="${escapeAttr(c.category)}">${escapeHtml(categoryLabel(c.category))}</span>`;
     box.appendChild(label);
     label.querySelector('input')?.addEventListener('change', onTargetChange);
   }
@@ -1604,7 +1604,7 @@ function renderRunStatusDialog(rs = statusDialogState) {
     const shownMessage = stripClusterPrefix(message, r.alias);
     tr.innerHTML = `
       <td title="${escapeAttr(r.alias)}">${escapeHtml(r.alias)}</td>
-      <td><span class="badge" data-cat="${escapeAttr(r.category)}">${escapeHtml(categoryLabel(r.category))}</span></td>
+      <td><span class="chip chip-group" data-cat="${escapeAttr(r.category)}">${escapeHtml(categoryLabel(r.category))}</span></td>
       <td>${statusCell}</td>
       <td>${r.phase === 'done' ? rowDurationMs(r) + ' ms' : ''}</td>
       <td title="${escapeAttr(shownMessage)}">${escapeHtml(shownMessage)}</td>
@@ -2981,13 +2981,13 @@ function scopeLabelsHtml(parts, extraCls = '') {
   // Added labels keep data-cat (so the per-group colour applies) and are flagged with a leading
   // "+"; removed labels drop data-cat so the red strikethrough overlay wins; normal labels carry
   // data-cat for their group colour.
-  const isStrike = extraCls === 'chip-scope-strike';
-  const isAdd = extraCls === 'chip-scope-add';
+  const isStrike = extraCls === 'chip-strike';
+  const isAdd = extraCls === 'chip-add';
   return parts
     .map((p) => {
       const cat = isStrike ? '' : ` data-cat="${escapeAttr(p.cat)}"`;
       const name = (isAdd ? '+' : '') + p.label;
-      return `<span class="chip-scope scope-kind-${p.kind} ${extraCls}"${cat}>${escapeHtml(name)}</span>`;
+      return `<span class="chip chip-${p.kind} ${extraCls}"${cat}>${escapeHtml(name)}</span>`;
     })
     .join('');
 }
@@ -3324,8 +3324,8 @@ function renderAlterDetail() {
     const addIds = new Set(alterDetails.filter((d) => !d.exists).map((d) => d.clusterId));
     const presentLabels =
       scopeLabelsHtml(describeScope(presentIds)) +
-      scopeLabelsHtml(describeScope(addIds), 'chip-scope-add') +
-      scopeLabelsHtml(describeScope(new Set(roleRemoveClusters)), 'chip-scope-strike');
+      scopeLabelsHtml(describeScope(addIds), 'chip-add') +
+      scopeLabelsHtml(describeScope(new Set(roleRemoveClusters)), 'chip-strike');
     present.innerHTML =
       `<span class="section-label">Present on</span>` +
       `<button type="button" class="scope-act" id="btn-present-edit" title="Add / remove role on clusters" aria-label="Add / remove role on clusters">${ICONS.edit}</button>` +
@@ -3552,8 +3552,8 @@ function scopeRowHtml(kind, key, name, curSet, addSet, revSet) {
   const emptyNote = kind === 'attr' ? '<span class="hint scope-off">off</span>' : '<span class="hint">none</span>';
 
   const keptLabels = scopeLabelsHtml(describeScope(kept));
-  const addLabels = addSet.size ? scopeLabelsHtml(describeScope(addSet), 'chip-scope-add') : '';
-  const revLabels = revSet.size ? scopeLabelsHtml(describeScope(revSet), 'chip-scope-strike') : '';
+  const addLabels = addSet.size ? scopeLabelsHtml(describeScope(addSet), 'chip-add') : '';
+  const revLabels = revSet.size ? scopeLabelsHtml(describeScope(revSet), 'chip-strike') : '';
   const labels = keptLabels + addLabels + revLabels || emptyNote;
 
   // All three actions always render as square buttons beside the row; the ones that don't
