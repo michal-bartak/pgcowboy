@@ -94,7 +94,8 @@ into prose, it goes stale.
   their slug id immediately so clusters can reference them pre-save. **Only the Clusters editor
   reads the drafts** — Operations target selection / run resolution keep reading saved `state`, so
   unsaved cluster edits never affect what a run targets. `Test connections` tests the on-screen
-  draft values via `TestConnectionInput`, writing per-row Status.
+  draft values via `TestConnectionInput`, writing a short per-row Status **and** its own footer
+  status chip (see the Test-connections decision below).
 - **No corner toast — feedback goes to the action button or inline.** There is no `showToast`.
   Simple confirmations **flash the action button** ("Saved"/"Created", green, ~1.2 s via
   `flashButton`); Save buttons are **enabled only when there are changes, disabled (inert) when
@@ -289,9 +290,9 @@ into prose, it goes stale.
   batch entirely; **Try anyway** sends the normal `remove_role`.
   **Popup layout — three ordered sections** (`depsTier`: 0 clean / 1 check failed / 2 has
   dependencies; empty ones omitted), each under a small-uppercase `.alter-privs-label` subheader,
-  ordered inside by **configured category order then alias** (`depsSortRows` over the shared
-  `byGroupThenAlias`, same category rule as `describeScope` — not the alphabetical sort
-  `renderClustersTable` uses): **No dependencies** = a
+  ordered inside by **group name then alias** (`depsSortRows` over the shared
+  `byGroupThenAlias` — the same rule `renderClustersTable` and the status table use; the *chips* of
+  one row keep `describeScope`'s configured-category order instead): **No dependencies** = a
   `.deps-chips` row of chips only; **Could not be checked** = a `Cluster | Error | Skip/Try` table;
   **Dependencies found** = per cluster a header line (chip + count + toggle) plus its own table.
   A cluster is identified by ONE group-coloured chip via the shared `scopeLabelsHtml` — there is no
@@ -783,12 +784,35 @@ Settings & Clusters `[Discard] [Save]` right-aligned; Remove role renders left o
 `.ops-footer .alter-actions{justify-content:flex-end}` + `#btn-alter-remove{order:-1}` — `order`
 is the whole mechanism, and both rules now sit together). A button opts out to the LEFT of a
 right-aligned row with `margin-right:auto` (Test connection, `#fn-dialog-default`,
-`#search-status`). The **Test connections** button lives in the tabs bar's Clusters action group
-(`btn-test-clusters` → `testAllClusters`): it tests every configured cluster and
-writes the outcome into a per-row **Status** column (`setClusterStatus`). Cluster rows have
+`#search-status`, `#cluster-test-status`). The **Test connections** button lives in the tabs bar's
+Clusters action group (`btn-test-clusters` → `testAllClusters`): it tests every configured cluster
+and reports **two ways**, because the Status column is a fixed `9ch` track and a connection error is
+a sentence. The **cell carries a one-word label only** — `OK` / `Error` / `testing…` in
+`.status-ok`/`.status-error`/`.status-pending`, with the full message as its `title`
+(`setClusterStatus`, which takes the message but renders the label) — and the **detail goes to a
+footer status chip**, `#cluster-test-status` in `.clusters-footer`, a third independent state
+(`clusterTestState`) alongside `runState`/`searchState`, painted by `renderClusterTestStatus` →
+the shared `paintStatusChip`, opening the shared `#run-status-dialog` whose **Message column is the
+flexible one**. It is seeded from `clustersDraft` (**not** `beginRunStatus`, which resolves
+alias/host/group from *saved* clusters and would print an unsaved row's `tmp_<n>` id) via
+`buildStatusState(rows, 'queued')` — the phase argument is the whole generalization — then each row
+is patched as its test settles, so the chip counts `running… (k/N)`. Durations are timed
+frontend-side (`Date.now()`, `TestConnectionInput` returns only an `error`), and `queries` stays
+empty, so the popup's magnifier is inert. Following the `searchState` precedent it is **not** in
+`clearRunStatus`: the state belongs to the run that produced it and is reset by the next one (the
+chip lives inside `#panel-clusters`, so it cannot bleed onto another page). `renderClustersTable`
+rebuilds every row, so it ends by calling `restoreClusterStatuses()` to repaint the finished cells
+from that state — otherwise any add/edit/delete blanked the column while the chip still said Error.
+`#run-status-dialog` labels and sorts a group by name via `categoryLabel`, which falls back to the
+**draft** label, so a cluster in a not-yet-saved group is not reported under its slug; the table
+itself keeps `draftCategoryLabel` (draft-first), because it must sort by the name it prints — the
+two differ only for a group renamed and not yet saved. Cluster rows have
 no per-row Test button (testing on-screen values is done from the cluster editor via
 `TestConnectionInput`); each row's **Actions** cell holds right-aligned **✎ edit** / **× delete**
 icon buttons (`.scope-act`, same as the role form) in a `.row-actions` flex.
+`.clusters-footer` therefore mirrors `.ops-footer`: its `.form-error` takes a full-width row
+(`flex-basis:100%; order:-1`) so the chip alone holds the left slot — `.settings-footer` keeps the
+old `margin-right:auto` error, which is why that one grouped rule is now split.
 
 Top tabs **Operations / Clusters / Settings**, with **one right-aligned action group per page** in
 the same bar: `.tab-actions` boxes carrying **Create role** / **Alter role** (`#op-tabs`) and
@@ -906,7 +930,8 @@ The header is a `.brand` row (accent dot + smaller title + version chip + round 
   `reloadDetails`) and owns the footer chip. Clicking it opens the shared `#run-status-dialog`:
   `openRunStatusDialog(rs)` records `statusDialogState`, and `runStatusSummary(rs)` /
   `renderRunStatusDialog(rs)` / the row magnifier+copy all read the state they were given, so the
-  two chips never bleed into each other. `searchState` is cleared by `openSearchDialog` (it belongs
+  two chips never bleed into each other (the Clusters page's `clusterTestState` is the third).
+  `searchState` is cleared by `openSearchDialog` (it belongs
   to the search that produced it); `clearRunStatus` still owns `runState` only.
   **Failures are a one-liner, never a list** — `searchFailureLine(failed, total)` in
   `#alter-search-errors` ("2 of 5 clusters could not be searched — click Status for details."), with
@@ -978,10 +1003,13 @@ The header is a `.brand` row (accent dot + smaller title + version chip + round 
   `renderRunStatus`, state in `runState`). The chip is **button-sized, neutral-colored, and
   glyph-free** (spinner only while running; the *word* OK/Error carries the result — no ✓/✕).
   Clicking it opens `#run-status-dialog` (columns Cluster/Category/Status/Duration/Message +
-  actions; **no Host column**), live while running. Rows are **ordered by configured group then
-  alias** — `statusRowOrder(rs)` sorts at render with the shared `byGroupThenAlias`, so the table is
+  actions; **no Host column**), live while running. Rows are **ordered by group name then alias**
+  — `statusRowOrder(rs)` sorts at render with the shared `byGroupThenAlias`, so the table is
   stable regardless of the order clusters were queued in or results arrived in, for **every** use of
-  it (runs, role loads, search). Each done row's actions cell has a
+  it (runs, role loads, search, connection tests), and reads in the same order as the Clusters
+  table. **Status is never a sort key** — a failed cluster stays where its group and alias put it
+  (the deps popup's `depsTier` grouping is the one deliberate exception). A group that no longer
+  exists has no name, so it sorts last (`groupRank`) rather than by its slug. Each done row's actions cell has a
   **magnifier** (`.rst-view`) that opens a separate, larger `#run-queries-dialog` listing that
   cluster's executed SQL (`ClusterResult.Queries`/`ClusterProgress.Queries` — the queries are
   NOT shown inline in the table) and a **copy button** (`.rst-copy`) that copies the cluster's

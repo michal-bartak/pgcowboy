@@ -403,12 +403,15 @@ main { flex: 1 1 auto; min-height: 0; overflow: hidden; }
 /* Clusters + Settings share the same padded panel + inset (up-to-margins) footer divider. */
 #panel-clusters, #panel-settings { padding: 1rem var(--page-pad); }
 #panel-clusters .table-wrap { flex: 1 1 auto; min-height: 0; }
-/* Staged editor footer: Discard/Save on the right, inline error on the left; border-top inset
-   to the panel content (not the full window). */
+/* Staged editor footer: Discard/Save on the right, inline error to their left (Clusters puts it on
+   its own row — see below); border-top inset to the panel content (not the full window). */
 .clusters-footer,
 .settings-footer { flex: none; display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: center; justify-content: flex-end; border-top: var(--hairline) solid var(--border); padding: 0.75rem 0 0; margin-top: 0.75rem; }
-.clusters-footer .form-error,
 .settings-footer .form-error { margin: 0; margin-right: auto; }
+/* Clusters has a status chip in that left slot (like .ops-footer), so its error line takes a row
+   of its own above the chip + buttons instead of competing for the slack. */
+.clusters-footer .form-error { flex-basis: 100%; order: -1; margin: 0 0 0.25rem; }
+#cluster-test-status { margin-right: auto; }
 .settings-body { flex: 1 1 auto; min-height: 0; }
 
 button {

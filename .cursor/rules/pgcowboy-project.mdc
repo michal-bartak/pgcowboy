@@ -85,7 +85,7 @@ templates: [`config.example.yaml`](config.example.yaml),
   check failed, defaults to **Skip** and is left out of the batch; a clean cluster is dropped
   without asking. The popup **replaces** the old `askConfirm('Remove role', …)`; production
   confirm still fires inside `executeRoleBatch`. Layout = **three sections** (`depsTier`: clean →
-  could-not-be-checked → has-dependencies, ordered inside by configured category order then alias
+  could-not-be-checked → has-dependencies, ordered inside by group name then alias
   via `depsSortRows`): chips only / a `Cluster|Error|Skip-Try` table / per-cluster header + table.
   Clusters are labelled by ONE group-coloured `scopeLabelsHtml` chip (no alias text, no separate
   badge class — every pill in the app is the one `.chip` + `.chip-group`/`.chip-cluster`);
@@ -252,7 +252,11 @@ footer (`btn-save-clusters` → `App.SaveClusters` → `Store.SaveClustersAndCat
 validate+replace; Save enabled-when-dirty / disabled-when-clean via `clustersDirty`). Only the Clusters editor
 reads the drafts — Operations keeps reading saved `state`. **Test connections**
 (`btn-test-clusters` → `testAllClusters`) tests the on-screen **draft** values via
-`TestConnectionInput` into a per-row **Status** column (`setClusterStatus`). Left sidebar is Target selection only; "Or pick clusters" collapses/expands
+`TestConnectionInput`; the per-row **Status** column carries a one-word `OK`/`Error`/`testing…`
+label (`setClusterStatus`, full message in the `title`) and the detail goes to the Clusters footer's
+own status chip (`#cluster-test-status`, state `clusterTestState`, seeded from the DRAFT rows via
+`buildStatusState(rows,'queued')` and patched per result; `restoreClusterStatuses` repaints the
+cells `renderClustersTable` rebuilds). Left sidebar is Target selection only; "Or pick clusters" collapses/expands
 (collapsed by default; expanded list flexes to fill). Target selection is **remembered**
 (module-level `selectedCategoryIds`=null→all / `selectedClusterIds`, seeded once from
 persisted `Config.Targets`, re-render keeps it, persisted via `SaveTargetSelection`) so it
@@ -351,13 +355,16 @@ inline in a `.form-error` (`showInlineError` →
 `#ops-error`/`#settings-error`/`#clusters-error`/`#scope-error`/`#group-error`/
 `#cluster-test-error`/`#alter-search-errors`) + a red button flash; run outcomes stay in the chip.
 The **Find-role popup** has its OWN status chip (`#search-status`, bottom-left of its `<menu>`) fed
-by `searchState` = `buildStatusState(SearchRoles rows)` — independent of `runState` (a search runs
+by `searchState` = `buildStatusState(SearchRoles rows)` — independent of `runState` and of the
+Clusters page's `clusterTestState` (a search runs
 only `SearchRoles`; the detail load comes later via `pickUser`→`reloadDetails` and owns the footer
 chip). Clicking it opens the shared `#run-status-dialog` via `openRunStatusDialog(rs)`, which sets
 `statusDialogState`; `runStatusSummary(rs)`/`renderRunStatusDialog(rs)` take the state explicitly.
-The status table's rows are ordered by **configured group then alias** for every usage
-(`statusRowOrder` → the shared `byGroupThenAlias`, also used by `depsSortRows`), never by arrival
-order.
+The status table's rows are ordered by **group name then alias** for every usage
+(`statusRowOrder` → the shared `byGroupThenAlias`, also used by `depsSortRows` and matching the
+Clusters table), never by arrival order and never by status; a group that no longer exists sorts
+last (`groupRank`). `categoryOrderIndex` (configured order) is now only `describeScope`'s
+chip order.
 Search failures are a **one-liner** (`searchFailureLine`) — `renderAlterErrors`' per-cluster list is
 gone, and `stripClusterPrefix` removes the `connect to <alias>: ` that `pg.Connect` adds when a
 Cluster column already names it. `pg.cleanConnectError` dedupes pgx's interleaved TLS+plaintext
