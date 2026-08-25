@@ -1234,6 +1234,11 @@ Capture is **scripted and Windows-only** (it drives the real app); human-facing 
   launch. `audit.mjs` fails any figure showing a scrollbar unless it declares `scrolls: true`
   (Settings always scrolls; `comment-raw-view` does because the Raw textarea is ~95px taller than
   the Fields inputs it replaces).
+  A figure may override it with its own `size` in `shots.json` (honoured by `audit.mjs`, which now
+  reads `canonical` from the manifest rather than duplicating it); the four **Clusters** figures do,
+  at 60% height (1670x1163), because that tab is a short table above a pinned footer and published
+  ~900px of empty space at the canonical height. `crop` is NOT a substitute — it slices rows off a
+  full-size capture and so waives the bottom-edge check, which a real short window must still pass.
 - **Flip the theme with `Set-OsTheme`, in place.** `ui.theme: system` + `applyTheme`'s
   `prefers-color-scheme` listener means the OS flip repaints the window without losing scroll
   position, staged edits or an open dialog — which is the only way a light/dark pair differs by

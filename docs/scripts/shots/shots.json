@@ -2,16 +2,17 @@
   "$comment": [
     "Figure manifest for the docs screenshots. Consumed by audit.mjs; read by a human (or an agent)",
     "driving capture.ps1 through the app. Every figure is a -light.png / -dark.png pair under",
-    "src/assets/<dir>/, captured at the canonical client size below unless it declares a crop.",
+    "src/assets/<dir>/, captured at the canonical client size below unless it declares a crop or its own size.",
     "",
     "  state    how to reach the figure, from the app's startup state",
     "  crop     keep only the top N rows (a strip figure); absent = full window",
+    "  size     capture at this client size instead of the canonical one; absent = canonical",
     "  callout  x,y,w,h of the green #3DC46C highlight box, or absent for no callout",
     "  redact   regions pixelated by Save-ClientShot -Redact, for personal data",
     "  scrolls  the panel legitimately shows a scrollbar; audit.mjs skips its no-scrollbar rule",
     "  skip     why this figure is not re-captured by this pipeline",
     "",
-    "Callout and redact rects are per-capture pixel coordinates, valid only at the canonical size and",
+    "Callout and redact rects are per-capture pixel coordinates, valid only at that figure's capture size and",
     "only for the app version they were derived against. Re-derive them -- contentbox.mjs for callouts,",
     "controlbox.mjs for redactions -- rather than nudging them by hand, and record what you used here.",
     "",
@@ -42,7 +43,11 @@
       "frame sat on the row's action buttons. (2) Every frame on a tab starts at the same x, which is",
       "what anchorX pins; deriving it per figure put present-on on 475 and its siblings on 474.",
       "The frame MAY cross the scrollbar lane -- it is empty space, and treating it as a boundary is",
-      "what caused (1)."
+      "what caused (1).",
+      "",
+      "Deriving a rect: bound the MEASUREMENT away from the scrollbar lane, or the bar is measured as",
+      "content and the frame spans the window -- contentbox.mjs --scan 34:1646 on Settings (anchor 14),",
+      "--scan 494:1646 on Operations (anchor 474)."
     ]
   },
   "redactPolicy": [
@@ -61,28 +66,44 @@
       "uat"
     ],
     "uiTheme": "system",
-    "windowSize": "config.yaml window_width 968 / window_height 1144, which restores a 1670x1938 client",
+    "windowSize": "config.yaml window_width 968 / window_height 1144, which restores the canonical 1670x1938 client. The four Clusters figures declare a shorter size and are captured at 1670x1163 -- Set-ClientSize puts the window there; the app persists whatever size it is left at (the resize listener in frontend/app.js calls App.SaveWindowSize), so leave it canonical at the end of a session.",
     "note": "Two gotchas: blur an [autofocus] text field (click the dialog heading) or its caret lands in one theme and not the other; and this role's comments DIFFER across clusters, so the inline comment editor only appears after the Comments dialog folds them with 'Use in all clusters' + OK."
   },
   "figures": [
     {
       "name": "clusters-tab",
       "dir": "configuration",
+      "size": {
+        "width": 1670,
+        "height": 1163
+      },
       "state": "Clusters tab, virgin Status column. Statuses survive a tab switch once Test connections has run, so restart the app for this one."
     },
     {
       "name": "cluster-editor",
       "dir": "configuration",
+      "size": {
+        "width": 1670,
+        "height": 1163
+      },
       "state": "Clusters tab, pencil on PROD_PM. Click the 'Edit cluster' heading to blur the Alias field."
     },
     {
       "name": "cluster-groups",
       "dir": "configuration",
+      "size": {
+        "width": 1670,
+        "height": 1163
+      },
       "state": "Clusters tab, Cluster groups button (right of the tab bar) -- the groups list popup."
     },
     {
       "name": "cluster-groups-editor",
       "dir": "configuration",
+      "size": {
+        "width": 1670,
+        "height": 1163
+      },
       "state": "From the groups list, pencil on Production. Click the 'Edit group' heading to blur the Label field."
     },
     {
@@ -97,9 +118,9 @@
       "state": "Settings tab, scrolled to top.",
       "callout": [
         14,
-        162,
+        161,
         554,
-        269
+        267
       ],
       "scrolls": true
     },
@@ -109,7 +130,7 @@
       "state": "Settings tab, scrolled to top.",
       "callout": [
         14,
-        453,
+        450,
         566,
         329
       ],
@@ -121,7 +142,7 @@
       "state": "Settings tab, scrolled to top.",
       "callout": [
         14,
-        803,
+        800,
         456,
         456
       ],
@@ -133,7 +154,7 @@
       "state": "Settings tab, scrolled to top.",
       "callout": [
         14,
-        1285,
+        1282,
         1187,
         293
       ],
@@ -145,9 +166,9 @@
       "state": "Settings tab, scrolled to the bottom.",
       "callout": [
         14,
-        730,
+        765,
         1643,
-        266
+        265
       ],
       "scrolls": true
     },
@@ -157,9 +178,9 @@
       "state": "Settings tab, scrolled to the bottom.",
       "callout": [
         14,
-        1016,
+        1051,
         1643,
-        615
+        614
       ],
       "scrolls": true
     },
@@ -176,9 +197,9 @@
       "redact": [
         [
           1035,
-          455,
+          451,
           135,
-          44
+          46
         ]
       ]
     },
@@ -190,55 +211,55 @@
     {
       "name": "find-role",
       "dir": "usage",
-      "state": "Alter role op-tab, search 'michal' -- 8 matching roles. Click the 'Find role' heading to blur the search input. Row inner tops are 749 + 72*(i-1); rects are inset 2px inside the row card.",
+      "state": "Alter role op-tab, search 'michal' -- 8 matching roles. Click the 'Find role' heading to blur the search input. Row inner tops are 750, 822, 893, 965, 1037, 1108, 1180, 1251 (derived with controlbox.mjs); rects are inset 2px inside the row card.",
       "redact": [
         [
+          810,
+          752,
+          190,
+          54
+        ],
+        [
           250,
-          823,
+          824,
           750,
-          53
+          54
         ],
         [
           250,
           895,
           750,
-          53
+          54
         ],
         [
           250,
           967,
           750,
-          53
-        ],
-        [
-          250,
-          1183,
-          750,
-          53
-        ],
-        [
-          250,
-          1255,
-          750,
-          53
-        ],
-        [
-          810,
-          751,
-          190,
-          53
+          54
         ],
         [
           810,
           1039,
           190,
-          53
+          54
         ],
         [
           810,
-          1111,
+          1110,
           190,
-          53
+          54
+        ],
+        [
+          250,
+          1182,
+          750,
+          54
+        ],
+        [
+          250,
+          1253,
+          750,
+          54
         ]
       ]
     },
@@ -254,16 +275,16 @@
       "crop": 544,
       "callout": [
         474,
-        159,
-        460,
+        158,
+        475,
         93
       ],
       "redact": [
         [
           1035,
-          455,
+          451,
           135,
-          44
+          46
         ]
       ]
     },
@@ -274,9 +295,9 @@
       "redact": [
         [
           1035,
-          455,
+          451,
           135,
-          44
+          46
         ]
       ]
     },
@@ -288,9 +309,9 @@
       "redact": [
         [
           1035,
-          455,
+          451,
           135,
-          44
+          46
         ]
       ]
     },
@@ -300,16 +321,16 @@
       "state": "Alter role, bartakm loaded. Role Parents section.",
       "callout": [
         474,
-        534,
+        531,
         1183,
-        380
+        379
       ],
       "redact": [
         [
           1035,
-          455,
+          451,
           135,
-          44
+          46
         ]
       ]
     },
@@ -320,9 +341,9 @@
       "redact": [
         [
           1035,
-          455,
+          451,
           135,
-          44
+          46
         ]
       ]
     },
@@ -333,9 +354,9 @@
       "redact": [
         [
           1035,
-          455,
+          451,
           135,
-          44
+          46
         ]
       ]
     },
@@ -345,16 +366,16 @@
       "state": "Alter role, bartakm loaded. Attributes section.",
       "callout": [
         474,
-        925,
+        922,
         1183,
         489
       ],
       "redact": [
         [
           1035,
-          455,
+          451,
           135,
-          44
+          46
         ]
       ]
     },
@@ -365,9 +386,9 @@
       "redact": [
         [
           1035,
-          455,
+          451,
           135,
-          44
+          46
         ]
       ]
     },
@@ -377,16 +398,16 @@
       "state": "Alter role, bartakm loaded. Settings (role GUC) section.",
       "callout": [
         474,
-        1426,
+        1422,
         1183,
         259
       ],
       "redact": [
         [
           1035,
-          455,
+          451,
           135,
-          44
+          46
         ]
       ]
     },
@@ -397,9 +418,9 @@
       "redact": [
         [
           1035,
-          455,
+          451,
           135,
-          44
+          46
         ]
       ]
     },
@@ -409,16 +430,16 @@
       "state": "Alter role, inline comment editor in Fields mode.",
       "callout": [
         474,
-        332,
+        331,
         1183,
-        191
+        189
       ],
       "redact": [
         [
           1035,
-          455,
+          451,
           135,
-          44
+          46
         ]
       ]
     },
@@ -429,9 +450,9 @@
       "crop": 982,
       "callout": [
         474,
-        332,
+        331,
         1183,
-        251
+        247
       ],
       "redact": [
         [
@@ -450,15 +471,15 @@
       "redact": [
         [
           995,
-          830,
+          829,
           140,
-          43
+          46
         ],
         [
           995,
-          1079,
+          1080,
           140,
-          44
+          45
         ]
       ]
     },
@@ -468,31 +489,23 @@
       "state": "Alter role, Set password ticked and a password generated, so the field, Generate, Copy and reveal controls are live. No scrolling needed at the canonical height.",
       "callout": [
         474,
-        1702,
+        1699,
         646,
-        132
+        131
       ],
       "redact": [
         [
           1035,
-          455,
+          451,
           135,
-          44
+          46
         ]
       ]
     },
     {
       "name": "remove-role-confirm",
       "dir": "usage",
-      "state": "Alter role, Remove role -- the dependency pre-flight. Read-only; captured WITHOUT confirming. Cancel, never Remove role.",
-      "redact": [
-        [
-          1035,
-          455,
-          135,
-          44
-        ]
-      ],
+      "state": "Alter role, Remove role -- the dependency pre-flight. Read-only; captured WITHOUT confirming. Cancel, never Remove role. No redaction: the dialog covers the comment editor entirely, and the schema/object names in the table are not personal data.",
       "scrolls": true
     },
     {

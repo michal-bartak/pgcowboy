@@ -92,7 +92,7 @@ Capture is scripted, under [`docs/scripts/shots/`](https://github.com/michal-bar
 | file | what it does |
 |------|--------------|
 | `capture.ps1` | Dot-source it, then `Set-ClientSize 1670 1938` and `Save-ClientShot <path>`. Captures the window's **client rect in physical pixels**, so a figure is framed by the app's own content edge. Also flips the OS light/dark setting in place (`Set-OsTheme`), drives clicks and scrolling, draws callout boxes and pixelates personal data. |
-| `shots.json` | One entry per figure: how to reach it, plus any crop, callout rect and redaction rects. |
+| `shots.json` | One entry per figure: how to reach it, plus any crop, own capture size, callout rect and redaction rects. |
 | `contentbox.mjs` | Derives a callout rect from a capture instead of eyeballing one. |
 | `controlbox.mjs` | Derives a control's inner rect, so a redaction fits inside the field rather than over its border. |
 | `audit.mjs` | Checks size, edge cleanliness, callout geometry and alignment, redaction containment and the absence of a scrollbar. |
@@ -137,6 +137,12 @@ cd docs && node scripts/shots/optimize.mjs && node scripts/shots/audit.mjs
 The canonical window size lives in the app's own `config.yaml` (`window_width` / `window_height`),
 so resize the window until the Operations page no longer scrolls and the app will restore that size
 on the next launch. `audit.mjs` fails any figure showing a scrollbar unless it declares `scrolls`.
+
+A figure may declare its own `size` instead, and the four Clusters figures do -- that tab is a short
+table above a pinned footer, so at the canonical height it published some 900px of empty space. They
+are captured at 60% of it (`Set-ClientSize 1670 1163`), and `audit.mjs` holds them to that size. This
+is not what `crop` is for: `crop` slices the top rows off a full-size capture, so it also waives the
+bottom-edge check, while a short window has a real client edge that must still be clean.
 
 Files not captured yet hold a generated placeholder that names itself, so a missing shot never breaks the build:
 

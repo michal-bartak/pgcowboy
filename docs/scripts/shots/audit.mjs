@@ -6,7 +6,8 @@
 // Six things are checked. Every one of them was actually wrong in a previous generation of the
 // assets, which is the point -- each rule exists because its absence let a defect ship:
 //
-//   size     Every full-window figure is exactly CANON, and each strip figure its declared crop.
+//   size     Every figure is exactly the size it declares -- the canonical client, its own `size`
+//            (the Clusters figures are shorter), or its `crop` height for a strip figure.
 //            The old assets came in six sizes because each was cropped by hand.
 //   edges    Every perimeter pixel is --bg or --border for its theme (scrim-aware). The old dark shots
 //            had a teal `0,28,37` last row -- desktop showing through the window rim, because the
@@ -31,7 +32,6 @@ import sharp from 'sharp';
 const DOCS = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const ASSETS = join(DOCS, 'src/assets');
 
-const CANON = { width: 1670, height: 1938 };
 // What may legitimately appear on the client-rect perimeter, per theme: the window background
 // (main.go BackgroundColour / the CSS --bg token) and --border, because the header/tab-bar and
 // footer hairlines run the full width and so touch x=0 and x=W-1. Values read off styles.css.
@@ -128,13 +128,21 @@ function calloutRects({ width: W, height: H, raw }) {
 }
 
 
-/** Columns near the right edge that are non-background for most of the body: a scrollbar thumb. */
+/** Columns in the SCROLLBAR LANE that are non-background for most of the body: a scrollbar thumb.
+ *
+ *  The lane is the page margin the bar rides in -- --page-pad, 34 physical px at the 175% scaling
+ *  these captures use -- so 32 is the whole search space. It used to be 60, which was fine only
+ *  while every figure was 1938px tall: in a SHORT window (the Clusters figures) the table fills the
+ *  sampled band, and the row action buttons at x 1610..1637 are non-background for ~65% of it, so
+ *  a clean capture was failed for a scrollbar it does not have. Measured across the whole asset set,
+ *  every real bar sits at 1648..1661 (1640..1654 for the wide deps dialog) and every false positive
+ *  at 1637 or left of it, so the lane separates them cleanly. */
 function scrollbarColumns({ width: W, height: H, at }, theme) {
   const { bg } = THEME[theme];
   const page = at(3, Math.floor(H / 3));
   const near = (c, w) => w.every((v, i) => Math.abs(c[i] - v) <= 6);
   const cols = [];
-  for (let x = W - 60; x < W; x++) {
+  for (let x = W - 32; x < W; x++) {
     let hits = 0, total = 0;
     for (let y = 200; y < H - 120; y += 4) {
       total++;
@@ -220,10 +228,19 @@ const CLEARANCE_SKEW = 2;  // px the two sides may differ by (antialiasing, odd 
 const RING_ESCAPES = 0;    // page-background pixels allowed in the ring outside a redaction
 
 const manifest = JSON.parse(readFileSync(join(DOCS, 'scripts/shots/shots.json'), 'utf8'));
+// The canonical client size lives in the manifest, not in a literal here -- shots.json used to
+// carry a `canonical` block that nothing read, beside a copy of it in this file.
+const CANON = manifest.canonical;
 const anchors = new Map();  // dir -> the x every callout on that tab must share
 for (const fig of manifest.figures) {
   if (fig.skip) continue;
-  const expect = { width: CANON.width, height: fig.crop ?? CANON.height };
+  // A figure may be captured at its own client size (the Clusters figures are, at 60% height --
+  // that tab's content ends far above the footer). `crop` is a different thing and does not
+  // substitute for it: it slices the top N rows off a full-size capture, and tells edgeStrays to
+  // skip the bottom row because it is an artificial cut. A short WINDOW has a real client edge
+  // there, which must still pass the bleed check.
+  const size = fig.size ?? CANON;
+  const expect = { width: size.width, height: fig.crop ?? size.height };
   for (const theme of ['light', 'dark']) {
     const rel = `${fig.dir}/${fig.name}-${theme}.png`;
     const file = join(ASSETS, rel);
