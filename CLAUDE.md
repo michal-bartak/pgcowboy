@@ -768,6 +768,27 @@ something else takes the shared size: the Clusters table, the secondary cluster 
 every scope label in the role form. That subject-vs-annotation split is the criterion for a new
 list, so extend the selector rather than inventing a size.
 
+(5) **`text-box: trim-both cap alphabetic` behind `@supports` is what actually centres the
+label.** Points (1)-(4) size the *pill*; they do not place the *text* in it. A browser centres the
+**line box**, which reserves the font's full descent, so the cap band lands low by
+`(fontAscent - fontDescent - capHeight)/2` -- a **per-font** quantity, which is why one constant
+cannot fix it and why `.chip` is excluded from `--ink-lift`: 0.03em on macOS SF, but **0.062em on
+Segoe UI**, leaving 4.58px of air above the caps against 3.50px below -- ~2 device px at 175%
+scaling. That was the reported bug, invisible on the Mac the token was tuned on. Trimming the line
+box to the text's own edges makes the content box *be* the ink, so the padding edge is the ink edge
+and the label is centred for **any** font with nothing to tune. Three consequences: **`P` is no
+longer a sum but the padding itself**, so (4)'s snap becomes exact rather than approximate -- and it
+now holds on Windows, where the old `P` measured 4.32, not 4; `--chip-pad-y` is restated as the air
+itself (`calc(1rem * 2 / 7)` = 4px shared, `calc(1rem * 3 / 7)` = 6px subject -- a decimal literal
+must err **high**, since `0.2857rem` x 1.75 = 6.99965 flips a device pixel); and the pill stops
+caring about `line-height` at all, inherited or not, so (1) is moot on this path. Measured 7/7
+device px of air at every sub-pixel offset. The **subject** chips cannot be snapped (only multiples
+of 4px are, and 4px/8px are the wrong sizes), so 6px is exact at 100/150/200% and jitters one device
+px at 125/175% -- still better than the ~2 they were off by. An engine without `text-box` skips the
+block and renders as (1)-(4) did, so the **WebKit 16 / WebKitGTK 2.38 floor is unchanged** -- it
+simply keeps the old centring, which is equally why the fix does not reach an older WebKitGTK. Keep
+the id-specificity exception **repeated inside** the block, and the block **after** it.
+
 **App shell**: header + tabs bar are fixed (`body` is a flex column, `overflow:hidden`,
 no page scroll); `main` fills the rest. Each panel manages its own scroll. Operations is
 a two-column grid — left `.ops-sidebar` and right `.ops-main` scroll **independently**;

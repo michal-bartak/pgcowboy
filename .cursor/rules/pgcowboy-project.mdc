@@ -166,7 +166,10 @@ off centre by `(fontBoxAscent - fontBoxDescent - capHeight) / 2` — measured 0.
 = the 0.042em token, but only 0.06px at `--fs-base`, so it goes on the small-font elements
 (`button.small`, `.ph-chip`, `.pick-chip`) and **full-height buttons stay symmetric** like
 `.tab`/`.seg-btn`; `min-height` is not a factor, and the removed `--ink-lift-control: 0.086em`
-overcorrected buttons by ~1px — don't reintroduce it; uppercase pills excluded);
+overcorrected buttons by ~1px — don't reintroduce it; uppercase pills excluded); `.chip` is the exception that proves it: the miscentring is per-font, so the chip is
+centred structurally instead, by `text-box: trim-both cap alphabetic` behind `@supports` (the
+padding edge becomes the ink edge, making `P` the padding itself and the snap exact; engines
+without it keep the old centring, so the WebKit 16 / WebKitGTK 2.38 floor is unchanged).
 **`--checkbox-lift`** for the Target-selection checkbox. Retune the token, never sweep the rules. **`.section-label`** is the one small-uppercase section label
 (sized by `--fs-section`), replacing five drifted near-duplicates.
 

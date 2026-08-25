@@ -567,7 +567,8 @@ tr:last-child td { border-bottom: none; }
      1.715 + 0.0375 + 2.25 ≈ 4, which is why the value is 0.1225rem and not something round:
      CHANGING line-height REQUIRES re-deriving it. Tuned at the shipped density (html 87.5%)
      against macOS system-ui; Segoe UI lands ~0.1px off. Losing the exactness costs nothing but the
-     row-to-row stability. */
+     row-to-row stability. (On the text-box path below, P is simply the padding, so none of this
+     re-derivation applies there — see the @supports block after the size exception.) */
 .chip {
   --chip-pad-y: 0.1225rem;
   --chip-pad-x: 0.55rem;
@@ -602,6 +603,49 @@ tr:last-child td { border-bottom: none; }
    Run status, the role form — takes the shared size. */
 #category-checkboxes .chip,
 #groups-table .chip { --chip-pad-y: 0.265rem; }
+/* Where the engine can trim the line box to the text's own edges, do that instead of centring it.
+   The content box becomes exactly cap-top → alphabetic baseline, so the padding edge IS the ink
+   edge and the label is centred for ANY font, with no constant to tune. That is the point: the
+   miscentring is font-DEPENDENT — (fontAscent − fontDescent − capHeight)/2 — while --ink-lift is
+   one constant measured against macOS system-ui, which is why .chip was excluded from it. At chip
+   size that error is 0.03em on SF but 0.062em on Segoe UI, which left 4.58px of air above the caps
+   against 3.50px below — 1.08px of asymmetry, painting as ~2 device px at 175% scaling. That was
+   the reported bug, and it is invisible on the Mac the token was tuned on.
+   Three consequences worth knowing:
+   - P stops being a SUM (pad + half-leading + (ascent − cap)) and becomes the padding itself, so
+     the snap above is now exact instead of approximate — and it holds on every platform. It never
+     did on Windows: the old P measures 4.32 there, not 4.
+   - --chip-pad-y is therefore restated as the air itself, 4px shared and 6px for the subject chips.
+     calc(1rem * N / 7) is exact at the shipped density (14 * N / 7); a decimal literal would have
+     to err HIGH (0.2857143rem) and never low — 0.2857rem is 3.9998px, and 3.9998 * 1.75 = 6.99965
+     flips a device pixel when the pill's top lands on a half-pixel, which is the very jitter the
+     snap exists to prevent.
+   - the pill stops caring about line-height at all, inherited or not, so point (1) above is moot
+     here: .checkbox-group's 1.35 grows the untrimmed pill to 19.6px and leaves the trimmed one at
+     17.4px.
+   The shared chip measures 7/7 device px of air at all eight sub-pixel offsets at 175% — exact and
+   position-independent, which is the whole point. The SUBJECT chips below cannot have that: P must
+   be a multiple of 4 CSS px to snap at every scaling, and 4px is the shared size while 8px makes a
+   25.6px pill, so neither keeps them merely-larger. 6px is the best of the rest — exact at
+   100/150/200%, one device px of jitter at 125/175% (6 × 1.75 = 10.5 sits dead on a rounding
+   boundary; measured 10/11 ↔ 11/10 across offsets). That is strictly better than the ~2 device px
+   they were off by before, and it is the same tolerance the note above already grants them for
+   row-to-row stability. calc(1rem * 22 / 49) = 6.286px is the alternative: 11/11 exact at 175%, but
+   it gives up 100/150/200% to buy it.
+   Heights shift by a fraction of a pixel (17.79 → 17.63, 21.77 → 21.63) since the box is now
+   cap-height-driven rather than line-height-driven. An engine without text-box skips the block and
+   renders exactly as the rules above, so the WebKit 16 / WebKitGTK 2.38 floor is unchanged — such
+   an engine simply keeps the old centring. Two things not to undo: the id-specificity exception
+   MUST be repeated in here (#category-checkboxes .chip beats a bare .chip whatever the source
+   order), and this block must stay AFTER it. */
+@supports (text-box: trim-both cap alphabetic) {
+  .chip {
+    text-box: trim-both cap alphabetic;
+    --chip-pad-y: calc(1rem * 2 / 7); /* 4px — under trim the padding IS the air, above and below */
+  }
+  #category-checkboxes .chip,
+  #groups-table .chip { --chip-pad-y: calc(1rem * 3 / 7); } /* 6px */
+}
 
 .status-ok { color: var(--ok); }
 .status-error { color: var(--danger); }
