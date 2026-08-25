@@ -87,9 +87,56 @@ docs/src/assets/usage/target-selection-dark.png
 
 Starlight's theme toggle picks one, so **replacing a screenshot is just overwriting the file and rebuilding** — no markdown to edit.
 
+Capture is scripted, under [`docs/scripts/shots/`](https://github.com/michal-bartak/pgcowboy/tree/main/docs/scripts/shots) (Windows only — it drives the real app):
+
+| file | what it does |
+|------|--------------|
+| `capture.ps1` | Dot-source it, then `Set-ClientSize 1670 1938` and `Save-ClientShot <path>`. Captures the window's **client rect in physical pixels**, so a figure is framed by the app's own content edge. Also flips the OS light/dark setting in place (`Set-OsTheme`), drives clicks and scrolling, draws callout boxes and pixelates personal data. |
+| `shots.json` | One entry per figure: how to reach it, plus any crop, callout rect and redaction rects. |
+| `contentbox.mjs` | Derives a callout rect from a capture instead of eyeballing one. |
+| `controlbox.mjs` | Derives a control's inner rect, so a redaction fits inside the field rather than over its border. |
+| `audit.mjs` | Checks size, edge cleanliness, callout geometry and alignment, redaction containment and the absence of a scrollbar. |
+| `optimize.mjs` | Re-encodes the PNGs losslessly (~14% smaller), verifying each is pixel-identical first. |
+
+Why scripted: the first generation of assets was cropped by hand in an image editor, which left six
+different sizes across figures and a 1–2px rim of desktop bleeding through the window edge — visible
+as a teal last row in the dark shots. A computed client rect removes both.
+
+The green callout frames follow two rules, both enforced by `audit.mjs`:
+
+- **Left and right clearance are equal.** A frame is derived from its group's content box, padded
+  by 20px on each side.
+- **Every frame on a tab starts at the same x** — 14 on Settings, 474 on Operations — whatever its
+  width. Narrower groups get narrower frames, not shifted ones.
+
+A frame **may cross the scrollbar lane**; it is empty space. Treating the scrollbar as a boundary is
+what previously ate the right-hand padding on the widest groups and put the stroke on top of the
+row action buttons.
+
 :::caution
-Capture both themes with the same window size and scroll position, or the swap reads as a page jump instead of a theme change.
+Capture both themes with the same window size and scroll position, or the swap reads as a page jump
+instead of a theme change. `Set-OsTheme` exists for exactly this: the app follows the OS setting
+(`ui.theme: system`) via a `prefers-color-scheme` listener, so flipping it repaints the window
+**in place** — no scroll position, staged edit or open dialog is lost between the two shots.
 :::
+
+:::caution
+Callout and redaction rects are pixel coordinates, valid only for the app version they were derived
+against. Re-derive them after a layout change — `contentbox.mjs` for callouts, `controlbox.mjs` for
+redactions — rather than nudging them by hand. `audit.mjs` proves a redaction stayed inside its
+control, but not that it covers the right thing: check every redacted figure by eye before committing.
+:::
+
+To re-shoot the set: build and launch the app, `. docs/scripts/shots/capture.ps1`, snapshot the OS
+theme with `Get-OsTheme`, work through `shots.json`, restore the theme, then:
+
+```bash
+cd docs && node scripts/shots/optimize.mjs && node scripts/shots/audit.mjs
+```
+
+The canonical window size lives in the app's own `config.yaml` (`window_width` / `window_height`),
+so resize the window until the Operations page no longer scrolls and the app will restore that size
+on the next launch. `audit.mjs` fails any figure showing a scrollbar unless it declares `scrolls`.
 
 Files not captured yet hold a generated placeholder that names itself, so a missing shot never breaks the build:
 
