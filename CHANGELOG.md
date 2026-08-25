@@ -10,6 +10,8 @@ versioning: [SemVer](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.2.3] - 2026-08-25
+
 ### Fixed
 
 - **Chips** — one size everywhere, improved text centering
