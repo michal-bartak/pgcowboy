@@ -59,15 +59,6 @@
   --control-h: 2.1rem;
   --control-pad-y: 0.4rem;
   --control-pad-x: 0.55rem;
-  /* The air above and below a full-height control's TEXT, on the text-box path only (see the
-     @supports block after .segmented). There it is the padding itself, so it is the whole story;
-     --control-pad-y still pads a LINE BOX for input/select/textarea and must keep its value.
-     Derived, not picked: P = (H - cap - 2*border) / 2 against the measured field height, snapped to
-     a multiple of 4/7 px so P*1.75 is an integer and the painted air is equal above and below at
-     every sub-pixel position. 34/49 rem = 9.714px, P*1.75 = 17 exactly, and it reproduces the field
-     height to within 0.09px. Only 175% is exact: a value snapping at EVERY scaling has to be a
-     multiple of 4px, and none of those lands near the control height. */
-  --control-air: calc(1rem * 34 / 49);
   /* Width of a Settings list editor (role parents / comment fields / Find-role columns) AND of
      the .settings-field that wraps one — the two must agree, or the field would size to its
      content and the editor's 100% would resolve against that. */
@@ -286,6 +277,14 @@ input[type="checkbox"]:checked {
   border-color: var(--primary);
 }
 input[type="checkbox"]:checked::after { opacity: 1; }
+/* A single-line field's content is a LINE BOX, so `min-height` alone leaves its height per-font:
+   --control-h wins on macOS system-ui (29.4px) but a Segoe UI line box overflows it (30.3px). That
+   is not a detail — it is the quantity a hand-derived control padding was once fitted to, on one
+   platform. Taking the height outright makes --control-h the ONE height for every control, on every
+   platform and at every font size the density knob produces; the text stays centred because a
+   single-line field centres it in whatever height it is given. textarea keeps min-height: it grows. */
+input:not([type="checkbox"]):not([type="radio"]):not([type="color"]),
+select { height: var(--control-h); }
 textarea { min-height: 5rem; line-height: 1.4; }
 
 /* Global UI density. Every content-sized value in this file is a rem, so the root
@@ -429,10 +428,11 @@ main { flex: 1 1 auto; min-height: 0; overflow: hidden; }
 button {
   min-height: var(--control-h);
   /* Symmetric, and matching the input/select rule above so a button and a field in the same row
-     line up. This is the FALLBACK geometry: where the engine has text-box, the @supports block
-     after .segmented replaces the vertical half of it and centres the label on its cap band
-     instead. The old note here — that at --fs-base the cap band already centres to within
-     0.06px — held only for macOS system-ui; on Segoe UI it is out by ~2 device px at 175%. */
+     line up — and symmetric is the whole of it: the @supports block after .segmented trims the line
+     box to the ink, and equal padding around a box that IS the ink centres the label for any font
+     with nothing to tune. The old note here — that at --fs-base the cap band already centres to
+     within 0.06px — held only for macOS system-ui; on Segoe UI it is out by ~2 device px at 175%,
+     which is what the trim fixes. */
   padding: var(--control-pad-y) 0.85rem;
   border-radius: var(--radius);
   border: var(--hairline) solid var(--border);
@@ -1112,9 +1112,15 @@ tr:last-child td { border-bottom: none; }
 }
 
 /* Segmented control (e.g. Appearance) — connected buttons, one active. */
-.segmented { display: inline-flex; align-self: flex-start; border: var(--hairline) solid var(--border); border-radius: var(--radius); overflow: hidden; }
+/* The WRAPPER carries the height, not the buttons inside it — it is the box whose border is
+   visible, so it is the one that has to equal --control-h. Sizing the buttons instead and
+   subtracting the border is what does not work: `calc(var(--control-h) - 2 * var(--hairline))`
+   subtracts the NOMINAL 1.15px while the engine renders 1 or 2 device px depending on the DPI, so
+   the control lands a fraction short. Stretching (the inline-flex default) sizes the buttons for
+   free, whatever the border comes out as. */
+.segmented { display: inline-flex; align-self: flex-start; min-height: var(--control-h); border: var(--hairline) solid var(--border); border-radius: var(--radius); overflow: hidden; }
 .segmented .seg-btn {
-  min-height: var(--control-h);
+  min-height: 0;
   border: none;
   border-radius: 0;
   background: var(--bg);
@@ -1125,54 +1131,39 @@ tr:last-child td { border-bottom: none; }
 .segmented .seg-btn:hover:not(:disabled) { color: var(--text); border-color: var(--border); }
 .segmented .seg-btn.active { background: var(--primary); color: #fff; }
 .segmented .seg-btn:disabled { color: var(--muted); opacity: 0.4; cursor: default; }
-/* ONE height and ONE centring rule for every full-height text control. Three reported bugs met
-   here, and they are one cause with two faces.
+/* ONE centring rule for every full-height text control, and it needs no numbers.
    The TEXT sat low because nothing sets line-height on a control -- body declares none, so all of
    these inherit `normal`, which is font-defined. The browser centres that LINE box, which reserves
-   the font's full descent, so the cap band lands low by
-   (fontAscent - fontDescent - capHeight)/2: 0.03em on macOS SF but 0.062em on Segoe UI. Measured at
-   175%, a button painted 19 device px of air above the caps against 16 below. Trimming the line box
-   to the text's own edges makes the content box BE the ink, so the padding is the air on both sides
-   and the label is centred for ANY font with nothing to tune -- the same fix as .chip, whose
-   @supports block carries the full derivation of the snap.
-   The HEIGHTS disagreed for two further reasons, both about where the border sits. Every other
-   control keeps its border INSIDE its box (box-sizing: border-box), so:
-     button    hairline on itself  -> 2P + cap + 2B
-     .tab      border: none        -> 2P + cap, i.e. 2B short. It gets a TRANSPARENT border here --
-                                      the trick .chip already uses: the border is always present and
-                                      only its colour changes.
-     .seg-btn  none; the .segmented WRAPPER carries it -> 2B + (2P + cap), the identical sum, so it
-                                      needs no compensating padding once its min-height is gone.
-   The visible frame-to-ink gap is therefore P in all three cases. Measured before: button, input
-   and select 30.625px, .tab 31.143px, .segmented 31.679px. After, all three controls are 30.536px
-   against a field's 30.625px -- 0.09px apart, the price of a height that follows cap height instead
-   of a line box.
-   Three things not to undo:
-   - min-height: 0 is REQUIRED, not tidiness. Leave --control-h in place and a font with a smaller
-     cap makes the computed height fall short, min-height takes over, and the ink is centred in the
-     slack again -- exactly the line-box centring being removed here. Note it is already not what
-     wins: at --fs-base a Segoe UI line box is ~16.8px, which is why the controls measured 30.6px
-     rather than the 29.4px --control-h nominally sets.
-   - padding-block, never the `padding` shorthand: the three kinds have deliberately different
-     horizontal padding (0.85rem / 1rem / 0.9rem) and it has to survive.
-   - the bare `button` selector is safe. Every opt-out (.icon-btn, .scope-act, .le-del, .pw-gen,
-     .pw-toggle, .info-btn, .about-x, .q-hint) carries class specificity and keeps its own
-     height/padding whatever the source order, and each is an inline-flex wrapping an SVG with no
-     text, so the trim is a no-op on it. The reset list below is only the inline-block TEXT buttons
-     that opt out of full height: their padding survives on specificity but text-box would not, and
-     three of them carry --ink-lift, so trimming would double-correct them.
-   An engine without text-box skips the block and renders exactly as the rules above, so the
-   WebKit 16 / WebKitGTK 2.38 floor is unchanged. The block must stay AFTER .tab and
-   .segmented .seg-btn -- it overrides them at equal specificity, on source order. */
+   the font's full descent, so the cap band lands low by (fontAscent - fontDescent - capHeight)/2:
+   ~0 on macOS SF but 0.062em on Segoe UI, whose hhea ascent (1.079em) dwarfs its descent. Measured
+   at 175%, a button painted 19 device px of air above the caps against 16 below. Trimming the line
+   box to the text's own edges makes the content box BE the ink, so the label is centred by SYMMETRY
+   -- equal padding, and an equal split of any min-height slack -- for any font, with nothing to
+   tune. Same fix as .chip, whose @supports block carries the derivation of its snap.
+   That is deliberately ALL this block does. The heights are settled before it, by --control-h:
+   button and .tab take it as min-height, input and select as height, .segmented as min-height on
+   the wrapper. So one rem-valued token is the height of every control on every platform, and the
+   trim only places the ink inside it.
+   Two things not to reintroduce, both tried and both wrong:
+   - `min-height: 0` plus a hand-derived `padding-block`. The stated reason was that min-height
+     "re-centres the ink in the slack", but that is exactly what is wanted once the box is TRIMMED:
+     the content box is the ink, so an even split of the slack centres the ink. What the padding
+     bought instead was a height fitted to a MEASURED FIELD, and a field's height is a line box --
+     font-dependent. Fitted to 30.625px on Segoe UI it made every control 30.3px against a 29.4px
+     field on macOS: the "one height" held only on the platform it was measured on.
+   - a transparent border on .tab to make its box add up. With --control-h as min-height the sums
+     stop mattering: .tab keeps `border: none` and still measures exactly 29.4px.
+   The reset list is the inline-block TEXT buttons that opt out of full height: their padding
+   survives on specificity but text-box would not, and three of them carry --ink-lift, so trimming
+   would double-correct them. The bare `button` selector is otherwise safe -- every icon button
+   (.icon-btn, .scope-act, .le-del, .pw-gen, .pw-toggle, .info-btn, .about-x, .q-hint) carries class
+   specificity for its own height and wraps an SVG with no text, so the trim is a no-op on it.
+   An engine without text-box skips the block and renders as the rules above, so the WebKit 16 /
+   WebKitGTK 2.38 floor is unchanged. */
 @supports (text-box: trim-both cap alphabetic) {
   button,
   .tab,
-  .segmented .seg-btn {
-    text-box: trim-both cap alphabetic;
-    min-height: 0;
-    padding-block: var(--control-air);
-  }
-  .tab { border: var(--hairline) solid transparent; }
+  .segmented .seg-btn { text-box: trim-both cap alphabetic; }
   button.small,
   .about-check,
   .clusters-toggle,

@@ -15,7 +15,7 @@ versioning: [SemVer](https://semver.org/spec/v2.0.0.html).
 ### Fixed
 
 - **Chips** — one size everywhere, improved text centering
-- **Buttons, tabs and segmented selectors** — one height everywhere, with labels centred in them
+- **Buttons, tabs and segmented selectors** — one height on every platform, with labels centred in them
 - **Test connections** — the Status column shows OK/Error, the detail moved to a footer status chip
 - **Execution status** — clusters ordered by group name then alias, like the Clusters table
 

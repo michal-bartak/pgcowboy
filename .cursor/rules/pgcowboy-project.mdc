@@ -169,9 +169,11 @@ off centre by `(fontBoxAscent - fontBoxDescent - capHeight) / 2` — measured 0.
 overcorrected buttons by ~1px — don't reintroduce it; uppercase pills excluded); The numbers are macOS-only and the quantity is per-FONT, not per-size (0.062em on Segoe UI),
 so `.chip` AND every full-height control are centred structurally instead, by
 `text-box: trim-both cap alphabetic` behind `@supports` — for controls that is the block after
-`.segmented`, giving `button`/`.tab`/`.segmented .seg-btn` one height (`min-height: 0` +
-`padding-block: var(--control-air)`, 34/49 rem so P·1.75 = 17), with `.tab` taking a transparent
-border and `.segmented`'s wrapper border standing in for the button's own. `--ink-lift` now
+`.segmented`, and it carries no numbers: the trim makes the content box BE the ink, so symmetric
+padding centres it. Height is a separate mechanism, `--control-h` (min-height on `button`/`.tab`,
+`height` on `input`/`select`, min-height on the `.segmented` WRAPPER), so all controls are 29.4px on
+every platform. A `min-height: 0` + derived `padding-block` was tried and reverted: it fitted the
+height to a measured FIELD, whose height is a font-dependent line box. `--ink-lift` now
 survives only on `button.small`/`.ph-chip`/`.pick-chip`. The chip case:
 centred structurally instead, by `text-box: trim-both cap alphabetic` behind `@supports` (the
 padding edge becomes the ink edge, making `P` the padding itself and the snap exact; engines
