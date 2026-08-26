@@ -662,6 +662,32 @@ tr:last-child td { border-bottom: none; }
   #groups-table .chip { --chip-pad-y: calc(1rem * 3 / 7); } /* 6px */
 }
 
+
+/* THE ONE PLATFORM EXCEPTION to the two text-box blocks above: WebKitGTK paints outside the box the
+   trim creates, so Linux keeps the untrimmed geometry. Measured on Fedora at 100% scaling (1 CSS px
+   = 1 device px): a chip's metric cap band is 7.35px and the padding 4px each side, but the painted
+   ink is 8px and sits 2px below the border against 4px above it -- FreeType hints the cap band up to
+   a whole pixel and the excess lands above the baseline, the baseline being the edge it snaps to.
+   The trim is what exposes that: it shrinks the box to exactly the metric cap band, so the excess
+   pokes out of one side with nothing to balance it. The untrimmed line box absorbs it in its
+   half-leading instead (~3.4/4.1px for a typical Linux UI font), so here the fallback is the BETTER
+   rendering, not merely the older one. Note this is NOT a support gap: text-box is supported here
+   (Fedora ships WebKitGTK 2.48) and the trim IS applying -- the 4px padding above is the trim path's
+   own value. We are declining a feature that works, because this rasterizer paints outside the box
+   it creates. It is also what a WebKitGTK older than ~2.48 already renders (the app's 2.38 floor is
+   set by CSS subgrid; text-box arrived much later), so this makes every distro agree rather than
+   adding a third behaviour.
+   Reverting both properties is deliberate: --chip-pad-y's 0.1225rem is the value derived FOR the
+   untrimmed path (P = pad + half-leading + (ascent - cap)), so the pill lands back on its snap. The
+   controls need only the trim off -- their heights come from --control-h, which is platform-
+   independent either way. Set from the UA in app.js, before first paint. */
+html[data-platform="linux"] .chip { text-box: normal; --chip-pad-y: 0.1225rem; }
+html[data-platform="linux"] #category-checkboxes .chip,
+html[data-platform="linux"] #groups-table .chip { --chip-pad-y: 0.265rem; }
+html[data-platform="linux"] button,
+html[data-platform="linux"] .tab,
+html[data-platform="linux"] .segmented .seg-btn { text-box: normal; }
+
 .status-ok { color: var(--ok); }
 .status-error { color: var(--danger); }
 .status-pending { color: var(--muted); }

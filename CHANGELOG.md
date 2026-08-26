@@ -10,12 +10,17 @@ versioning: [SemVer](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- **Buttons, tabs and segmented selectors** — one height on macOS too; the 1.2.3 fix was fitted to Windows font metrics
+- **Chip and control labels on Linux** — centred again; WebKitGTK paints text outside the trimmed box
+
 ## [1.2.3] - 2026-08-25
 
 ### Fixed
 
 - **Chips** — one size everywhere, improved text centering
-- **Buttons, tabs and segmented selectors** — one height on every platform, with labels centred in them
+- **Buttons, tabs and segmented selectors** — one height everywhere, with labels centred in them
 - **Test connections** — the Status column shows OK/Error, the detail moved to a footer status chip
 - **Execution status** — clusters ordered by group name then alias, like the Clusters table
 
