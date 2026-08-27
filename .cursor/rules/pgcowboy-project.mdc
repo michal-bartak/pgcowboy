@@ -175,10 +175,7 @@ padding centres it. Height is a separate mechanism, `--control-h` (min-height on
 every platform. A `min-height: 0` + derived `padding-block` was tried and reverted: it fitted the
 height to a measured FIELD, whose height is a font-dependent line box. `--ink-lift` now
 survives only on `button.small`/`.ph-chip`/`.pick-chip`. The chip case:
-centred structurally instead, by `text-box: trim-both cap alphabetic` behind `@supports` — except
-on Linux (`html[data-platform="linux"]`, set from the UA at app.js top level): WebKitGTK's
-rasterizer hints the cap band up past the box the trim creates, so the untrimmed geometry is the
-better one there. (the
+centred structurally instead, by `text-box: trim-both cap alphabetic` behind `@supports` (the
 padding edge becomes the ink edge, making `P` the padding itself and the snap exact; engines
 without it keep the old centring, so the WebKit 16 / WebKitGTK 2.38 floor is unchanged).
 **`--checkbox-lift`** for the Target-selection checkbox. Retune the token, never sweep the rules. **`.section-label`** is the one small-uppercase section label

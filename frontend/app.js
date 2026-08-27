@@ -280,19 +280,6 @@ const ROLE_ATTRIBUTES = [
 ];
 /** @type {MediaQueryList | null} */
 let systemThemeMedia = null;
-/* WebKitGTK paints text outside the cap-height box that `text-box: trim-both cap alphabetic`
-   creates -- FreeType hints the cap band up to a whole pixel and the growth lands above the
-   baseline, which is the fixed edge -- so on a chip it reads 2px of air above the caps against 4px
-   below (measured on Fedora at 100% scaling: box 16px, ink 8px where the metric cap band is
-   7.35px). Linux therefore takes the untrimmed geometry; styles.css keys that off this attribute.
-   It is set from the UA rather than awaited from `Environment()` on purpose: the probe resolves
-   after first paint, which would reflow every chip and control by a pixel. The UA is enough here --
-   this is a desktop app, and the only Linux engine it ever runs in is WebKitGTK. Runs at top level,
-   before DOMContentLoaded, so the geometry is right on the first frame. */
-if (/Linux/.test(navigator.userAgent) && !/Android/.test(navigator.userAgent)) {
-  document.documentElement.dataset.platform = 'linux';
-}
-
 /** Cached `Environment().platform === 'linux'`; null until the first probe resolves. */
 let isLinuxHost = null;
 /** Linux-only gsettings poll while the preference is "system" — see applyTheme. */

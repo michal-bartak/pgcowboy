@@ -13,7 +13,6 @@ versioning: [SemVer](https://semver.org/spec/v2.0.0.html).
 ### Fixed
 
 - **Buttons, tabs and segmented selectors** — one height on macOS too; the 1.2.3 fix was fitted to Windows font metrics
-- **Chip and control labels on Linux** — centred again; WebKitGTK paints text outside the trimmed box
 
 ## [1.2.3] - 2026-08-25
 

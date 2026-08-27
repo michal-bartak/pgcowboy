@@ -553,7 +553,7 @@ out of step. Two rem values are hand-synced and must not drift:
 `th, td { padding: .55rem .75rem }` with the `1.5rem` in `depsColgroup`, and
 `.alter-result-head`'s `calc(0.7rem + 1px)` with the search-result row's border+padding.
 
-**Four things WebKitGTK gets wrong, fixed once each — don't undo them.**
+**Three things WebKitGTK gets wrong, fixed once each — don't undo them.**
 1. **`prefers-color-scheme` is a lie on Linux**: WebKitGTK answers "light" whatever the desktop is
    set to, so the *System* appearance could never resolve dark there. The frontend therefore asks
    the **backend** — `App.IsSystemDark()`
@@ -605,28 +605,6 @@ out of step. Two rem values are hand-synced and must not drift:
    Passing a non-nil `linux.Options` at all means **`WebviewGpuPolicy` must be set explicitly**:
    Wails applies its `Never` default (the wailsapp/wails#2977 rendering workaround) *only* when the
    struct is nil, so leaving the field at its zero value would silently flip it to `Always`.
-
-4. **The rasterizer paints outside the box `text-box` creates.** `trim-both cap alphabetic` sizes
-   the content box from the font's cap-height *metric*, but FreeType hints vertically at small sizes:
-   it snaps the baseline to a whole pixel and rounds the cap band up to one, and that growth lands
-   **above** the baseline, the baseline being the edge it snaps to. Measured on Fedora at 100%
-   scaling (1 CSS px = 1 device px): a chip's metric cap band is 7.35px and its padding 4px a side,
-   yet the painted ink is 8px and sits 2px below the top border against 4px above the bottom one.
-   The trim is precisely what exposes this — it shrinks the box to the metric cap band, so the excess
-   pokes out of one side with nothing to balance it, where an untrimmed line box absorbs it in the
-   half-leading (~3.4/4.1px for a typical Linux UI font). **So on WebKitGTK the fallback is the
-   better rendering, not merely the older one**. This is **not a support gap** — Fedora ships
-   WebKitGTK 2.48, `text-box` is supported and the trim *is* applying (the measured 4px padding is the
-   trim path's own value); the app declines a working feature because this rasterizer paints outside
-   the box it creates. It is also what a WebKitGTK older than ~2.48 renders anyway (the 2.38 floor is
-   set by CSS subgrid — `text-box` arrived much later), so putting all of Linux there makes every
-   distro agree instead of adding a third behaviour. The
-   opt-out is `html[data-platform="linux"]` (one block in [styles.css](frontend/styles.css), after
-   both `@supports` blocks), and the attribute is set **from the UA at app.js top level** — not from
-   the awaited `Environment()` probe that `onLinux()` uses, because that resolves after first paint
-   and would reflow every chip and control by a pixel. Linux implies WebKitGTK in a Wails app, so
-   the UA is enough. Reverting `--chip-pad-y` along with the trim is deliberate: `0.1225rem` is the
-   value derived FOR the untrimmed path, so the pill lands back on its snap.
 
 **Scrollbars are styled ONLY through `::-webkit-scrollbar`** (one universal block in
 [styles.css](frontend/styles.css), just below the user-select rule) — the standard
@@ -844,8 +822,7 @@ safe: `.icon-btn`/`.scope-act`/`.le-del`/`.pw-gen`/`.pw-toggle`/`.info-btn`/`.ab
 carry class specificity for their own height and are `inline-flex` around an SVG with no text, so
 the trim is a no-op on them. `input`/`select`/`textarea` are deliberately **not** trimmed (a
 textarea has no single cap band), and `textarea` keeps `min-height` because it must grow. Engines
-without `text-box` skip the block, so the WebKit 16 / WebKitGTK 2.38 floor is unchanged; Linux
-opts out of the block even where it is supported (see the WebKitGTK list above).
+without `text-box` skip the block, so the WebKit 16 / WebKitGTK 2.38 floor is unchanged.
 
 **App shell**: header + tabs bar are fixed (`body` is a flex column, `overflow:hidden`,
 no page scroll); `main` fills the rest. Each panel manages its own scroll. Operations is
