@@ -40,6 +40,10 @@ func DefaultConfig() model.Config {
 				Execution: model.ExecutionStatement,
 				Call:      "DROP ROLE ${loginname}",
 			},
+			RenameRole: model.DBFunction{
+				Execution: model.ExecutionStatement,
+				Call:      "ALTER ROLE ${loginname} RENAME TO ${new_loginname}",
+			},
 			GrantParents: model.DBFunction{
 				Execution: model.ExecutionStatement,
 				Call:      "GRANT ${parent_roles} TO ${loginname}",
@@ -427,11 +431,12 @@ func (s *Store) UpdateBatch(batch model.BatchSettings) error {
 // field added to UISettings has to be considered here rather than silently riding through.
 func normalizeUI(ui model.UISettings) model.UISettings {
 	return model.UISettings{
-		Theme:                  model.NormalizeTheme(ui.Theme),
-		CommentDefaultView:     model.NormalizeCommentView(ui.CommentDefaultView),
-		StageCreateOnTargetAdd: ui.StageCreateOnTargetAdd,
-		CheckForUpdates:        ui.CheckForUpdates,
-		PasswordGen:            ui.PasswordGen.Normalized(),
+		Theme:                    model.NormalizeTheme(ui.Theme),
+		CommentDefaultView:       model.NormalizeCommentView(ui.CommentDefaultView),
+		StageCreateOnTargetAdd:   ui.StageCreateOnTargetAdd,
+		SuppressMD5RenameWarning: ui.SuppressMD5RenameWarning,
+		CheckForUpdates:          ui.CheckForUpdates,
+		PasswordGen:              ui.PasswordGen.Normalized(),
 	}
 }
 

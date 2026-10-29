@@ -12,6 +12,7 @@ func migrateDBFunctions(fns *model.DBFunctions) {
 	defaults := DefaultConfig().DBFunctions
 	fns.CreateRole = migrateOne(fns.CreateRole, defaults.CreateRole, "create_role")
 	fns.RemoveRole = migrateOne(fns.RemoveRole, defaults.RemoveRole, "remove_role")
+	fns.RenameRole = migrateOne(fns.RenameRole, defaults.RenameRole, "rename_role")
 	fns.GrantParents = migrateOne(fns.GrantParents, defaults.GrantParents, "grant_parents")
 	fns.RevokeParents = migrateOne(fns.RevokeParents, defaults.RevokeParents, "revoke_parents")
 	fns.ChangePassword = migrateOne(fns.ChangePassword, defaults.ChangePassword, "change_password")
@@ -83,6 +84,7 @@ func validateDBFunctions(fns model.DBFunctions, commentFields ...string) error {
 	}{
 		{"create_role", fns.CreateRole},
 		{"remove_role", fns.RemoveRole},
+		{"rename_role", fns.RenameRole},
 		{"grant_parents", fns.GrantParents},
 		{"revoke_parents", fns.RevokeParents},
 		{"change_password", fns.ChangePassword},

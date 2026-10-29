@@ -11,6 +11,7 @@ import (
 const (
 	OpCreateRole     = "create_role"
 	OpRemoveRole     = "remove_role"
+	OpRenameRole     = "rename_role"
 	OpGrantParents   = "grant_parents"
 	OpRevokeParents  = "revoke_parents"
 	OpChangePassword = "change_password"
@@ -69,6 +70,14 @@ func BuildArgs(cfg model.Config, op model.OperationSpec) (model.DBFunction, map[
 		return cfg.DBFunctions.RemoveRole, map[string]string{
 			"loginname": login,
 			"rolename":  login,
+		}, nil
+	case OpRenameRole:
+		if op.RenameRole == nil {
+			return model.DBFunction{}, nil, fmt.Errorf("rename role parameters missing")
+		}
+		return cfg.DBFunctions.RenameRole, map[string]string{
+			"loginname":     op.RenameRole.LoginName,
+			"new_loginname": op.RenameRole.NewLoginName,
 		}, nil
 	case OpGrantParents:
 		if op.GrantParents == nil {
@@ -146,6 +155,17 @@ func ValidateOperation(cfg model.Config, op model.OperationSpec) error {
 		if op.RemoveRole == nil || strings.TrimSpace(op.RemoveRole.LoginName) == "" {
 			return fmt.Errorf("login name is required")
 		}
+	case OpRenameRole:
+		if op.RenameRole == nil || strings.TrimSpace(op.RenameRole.LoginName) == "" {
+			return fmt.Errorf("login name is required")
+		}
+		if strings.TrimSpace(op.RenameRole.NewLoginName) == "" {
+			return fmt.Errorf("new login name is required")
+		}
+		if op.RenameRole.NewLoginName == op.RenameRole.LoginName {
+			return fmt.Errorf("new login name is the same as the current one")
+		}
+		// The identifier itself (comma / NUL) is checked where it is quoted, in calltemplate.
 	case OpGrantParents:
 		if op.GrantParents == nil || strings.TrimSpace(op.GrantParents.LoginName) == "" {
 			return fmt.Errorf("login name is required")

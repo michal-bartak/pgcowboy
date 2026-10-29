@@ -171,6 +171,8 @@ func AllowedPlaceholders(operation string) map[string]bool {
 		names = []string{"loginname", "parent_roles"}
 	case "remove_role":
 		names = []string{"loginname"}
+	case "rename_role":
+		names = []string{"loginname", "new_loginname"}
 	case "grant_parents", "revoke_parents":
 		names = []string{"loginname", "parent_roles"}
 	case "change_password":

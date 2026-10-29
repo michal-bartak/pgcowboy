@@ -257,7 +257,7 @@ into prose, it goes stale.
   `resolveSelectedClusters()`); every edit is therefore a pure grant/enable/set. **Alter** =
   search → `pickUser` → `reloadDetails` loads the real per-cluster baseline. The **static**
   `#role-identity` block above `#alter-detail` holds login (editable+required in create,
-  readonly in edit) plus an inline **comment editor** (`#role-comment-editor`) — see the
+  editable in edit too, where a changed name stages a **rename** — see below) plus an inline **comment editor** (`#role-comment-editor`) — see the
   comment-handling decision below. The op-tab buttons are mode switches: Create resets to an
   empty form; Alter opens the search popup and enters edit only on pick. `updateTargetPreview`
   re-synthesizes + reconciles pending edits when the selection changes in create mode
@@ -278,6 +278,29 @@ into prose, it goes stale.
   the consistent inline comment then flows to new clusters as a `set_comment` (varies ⇒ created
   bare). All of it publishes on the one **Save changes** pass. `removeRole` (red button) targets
   only `exists:true` rows.
+- **Rename is a staged edit of the login field (Alter).** Typing a name ≠ `alterSelected` into
+  `#role-login` sets **`alterRenameTo`** (`onRoleLoginInput`; blank or the loaded name = no rename,
+  reset in `resetEditMaps`); `renderRenameState` keeps a ↺ (`revertRename`) beside the
+  field whenever a role is loaded — **disabled** until a rename is staged, then enabled with the hint
+  *Renamed from: <old>*; there is no separate "renaming" label.
+  `buildAlterClusterOps` **prepends `rename_role`** (old → new) to every `exists:true` cluster and
+  addresses every other op by `alterRenameTo || alterSelected` — so the rename is first in the
+  cluster's transaction, a password set in the same Save is hashed under the new name (MD5 hashes
+  are salted with the role name and PostgreSQL clears them on rename), a presence-add
+  `create_role` creates the **new** name, and a presence-remove `remove_role` drops the **old**
+  name un-renamed. `saveAlterations` runs `confirmRename` first: validates `ROLE_NAME_RE`, looks the
+  new name up over `alterTargets` (best-effort, like Create's pre-flight). **A collision is a STOP,
+  never a question**: the rename would fail on that cluster alone and leave the role named
+  differently across clusters, so the popup is `askConfirmWithCheck(…, {canProceed:false})` —
+  Continue hidden, Cancel reads Close — and the Save aborts. With no collision the **only** popup is
+  the MD5 note (`Rename role`, listing the renamed clusters); when *Set password* is ticked or
+  **`ui.suppress_md5_rename_warning`** is on there is **no popup at all** — the other staged edits
+  don't confirm either, and a confirm with nothing to warn about is just a click. The note carries a **Suppress this warning** checkbox (the confirm popup's optional
+  `#confirm-dialog-check-row`; `askConfirm` is now a thin wrapper returning `.ok`); ticking it persists
+  the flag via `suppressMD5RenameWarning` → `SaveUISettings` of the **saved** `state.ui` (never the
+  Settings drafts) on OK *or* Cancel, then mirrors it into the Settings checkbox (`#ui-suppress-md5`,
+  General, below *Stage role creation*). Only a fully clean result adopts the new name
+  (`alterSelected = renamedTo`) before the reload; scope is the searched scope, like every edit.
 - **Every `remove_role` is pre-flighted.** Before a role is dropped — by the red **Remove role**
   button *and* by a presence removal published on **Save changes** — the frontend runs the
   `role_dependencies` read on every targeted cluster (`App.LoadRoleDependencies` →
@@ -318,7 +341,7 @@ into prose, it goes stale.
 - **Run/build.** Both modes build **per-cluster ordered op lists** and send ONE
   `app.RunRoleBatch({clusters, auth, confirmProduction})` via `executeRoleBatch`; the backend runs
   each cluster's ops as a single transaction. `buildAlterClusterOps()` produces
-  `[{clusterId, operations:[{operation, <paramKey>:{…}}]}]` (order per cluster: grant → revoke →
+  `[{clusterId, operations:[{operation, <paramKey>:{…}}]}]` (order per cluster: [rename →] grant → revoke →
   password → **attributes (all keywords combined into one `set_attribute`)** → set_config →
   reset_config → set_comment). **Create**: `runOperation` validates the login, pre-flight-warns via
   `LoadRoleDetails`, then `buildCreateClusterOps(base)` prepends a `create_role` op (its
@@ -481,6 +504,7 @@ All defaults are **statement** mode, vanilla PostgreSQL DDL:
 |----|--------------|------------------|
 | `create_role` | loginname, parent_roles, **`${{<comment field>}}`** (one per `Config.CommentFields`) | `CREATE ROLE ${loginname}` (parent_roles + comment fields unused by the vanilla default; a `function`-mode override can consume them, e.g. `admin.create(${loginname}, ${parent_roles})`) |
 | `remove_role` | loginname (rolename alias) | `DROP ROLE ${loginname}` |
+| `rename_role` | loginname, **new_loginname** | `ALTER ROLE ${loginname} RENAME TO ${new_loginname}` |
 | `grant_parents` | loginname, parent_roles | `GRANT ${parent_roles} TO ${loginname}` |
 | `revoke_parents` | loginname, parent_roles | `REVOKE ${parent_roles} FROM ${loginname}` |
 | `change_password` | loginname, new_password | `ALTER ROLE ${loginname} PASSWORD ${new_password}` |

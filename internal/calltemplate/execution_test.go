@@ -209,6 +209,34 @@ func TestBuild_statement_resetConfig(t *testing.T) {
 	}
 }
 
+func TestBuild_statement_renameRole(t *testing.T) {
+	sql, _, _, err := Build(
+		"ALTER ROLE ${loginname} RENAME TO ${new_loginname}",
+		map[string]string{"loginname": "jdoe", "new_loginname": `Mixed"Case`},
+		"rename_role",
+		model.ExecutionStatement,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Both names are double-quoted identifiers: case is kept and an embedded quote is doubled.
+	if sql != `ALTER ROLE "jdoe" RENAME TO "Mixed""Case"` {
+		t.Fatalf("got: %s", sql)
+	}
+}
+
+func TestBuild_statement_renameRole_rejectsCommaInNewName(t *testing.T) {
+	_, _, _, err := Build(
+		"ALTER ROLE ${loginname} RENAME TO ${new_loginname}",
+		map[string]string{"loginname": "jdoe", "new_loginname": "a,b"},
+		"rename_role",
+		model.ExecutionStatement,
+	)
+	if err == nil {
+		t.Fatal("expected a comma in the new name to be rejected")
+	}
+}
+
 func TestBuild_statement_setAttribute_rejectsBadToken(t *testing.T) {
 	_, _, _, err := Build(
 		"ALTER ROLE ${loginname} WITH ${attribute}",

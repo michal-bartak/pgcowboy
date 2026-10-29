@@ -100,6 +100,9 @@ let alterConfigReset = new Map();
  *  Clusters to ADD the role to are represented as synthetic exists:false rows in alterDetails
  *  (like create mode), so the rest of the form naturally targets them. */
 let roleRemoveClusters = new Set();
+/** Alter: the new name staged by editing #role-login ('' = no rename). Published on Save changes
+ *  as the FIRST op of each existing cluster's transaction (see buildAlterClusterOps). */
+let alterRenameTo = '';
 /** Inline comment editor state (shared by Create/Alter). Rendered FROM and written TO by
  *  the editor; renderAlterDetail never touches it, so pending edits survive re-renders. */
 let commentEditor = {
@@ -231,6 +234,7 @@ function resetEditMaps() {
   alterConfigReset = new Map();
   commentOverrides = new Map();
   roleRemoveClusters = new Set();
+  alterRenameTo = '';
   alterDoPassword = false;
   alterPassword = '';
 }
@@ -347,13 +351,30 @@ function closeModal(dlg) {
 }
 
 /** @returns {Promise<boolean>} */
-function askConfirm(title, message) {
+async function askConfirm(title, message) {
+  return (await askConfirmWithCheck(title, message)).ok;
+}
+
+/** The confirm popup with an optional checkbox under the message (shown, unticked, only when
+ *  `checkLabel` is non-empty). Resolves on either button — or Esc — with the checkbox state too,
+ *  since a "Suppress this warning" choice holds whether or not the action goes ahead. With
+ *  `canProceed: false` it is a stop, not a question: Continue is hidden and Cancel reads Close, so
+ *  the only way out is to back off (it then always resolves `ok:false`).
+ *  @returns {Promise<{ok:boolean, checked:boolean}>} */
+function askConfirmWithCheck(title, message, { checkLabel = '', canProceed = true } = {}) {
   return new Promise((resolve) => {
     const dlg = document.getElementById('confirm-dialog');
     const okBtn = document.getElementById('confirm-dialog-ok');
     const cancelBtn = document.getElementById('confirm-dialog-cancel');
+    const check = /** @type {HTMLInputElement} */ (document.getElementById('confirm-dialog-check'));
     document.getElementById('confirm-dialog-title').textContent = title;
     document.getElementById('confirm-dialog-message').textContent = message;
+    // Set both ways on every open: the dialog is shared, so a stop must not leak into the next ask.
+    okBtn.classList.toggle('hidden', !canProceed);
+    cancelBtn.textContent = canProceed ? 'Cancel' : 'Close';
+    document.getElementById('confirm-dialog-check-row')?.classList.toggle('hidden', !checkLabel);
+    document.getElementById('confirm-dialog-check-label').textContent = checkLabel || '';
+    if (check) check.checked = false;
 
     const cleanup = () => {
       okBtn.removeEventListener('click', onOk);
@@ -364,12 +385,12 @@ function askConfirm(title, message) {
     const onOk = () => {
       cleanup();
       closeModal(dlg);
-      resolve(true);
+      resolve({ ok: true, checked: !!checkLabel && !!check?.checked });
     };
     const onCancel = () => {
       cleanup();
       closeModal(dlg);
-      resolve(false);
+      resolve({ ok: false, checked: !!checkLabel && !!check?.checked });
     };
 
     okBtn.addEventListener('click', onOk);
@@ -424,6 +445,11 @@ const setCommentViewButtons = (pref) => setSegValue('comment-view-pref', pref);
 /** Currently-checked "stage create when adding a target that lacks the role" setting. */
 function currentStageCreateOnAdd() {
   return !!document.getElementById('ui-stage-create')?.checked;
+}
+
+/** Currently-checked "suppress the MD5 password warning on rename" setting. */
+function currentSuppressMD5Warning() {
+  return !!document.getElementById('ui-suppress-md5')?.checked;
 }
 
 /** Currently-checked "automatically check for updates on startup" setting. */
@@ -578,6 +604,7 @@ async function loadConfig() {
     applyTheme(state?.ui?.theme || 'system');
     setCommentViewButtons(state?.ui?.commentDefaultView || 'raw');
     { const c = document.getElementById('ui-stage-create'); if (c) c.checked = !!state?.ui?.stageCreateOnTargetAdd; }
+    { const c = document.getElementById('ui-suppress-md5'); if (c) c.checked = !!state?.ui?.suppressMd5RenameWarning; }
     { const c = document.getElementById('ui-check-updates'); if (c) c.checked = autoCheckUpdates(); }
     setPasswordGenControls(state?.ui?.passwordGen);
     // Seed the remembered target selection ONCE (later loadConfig calls keep the in-memory
@@ -964,6 +991,8 @@ const DB_FUNCTIONS = [
     contract: 'Creates the role on each target cluster. Also receives ${parent_roles} (statement: "a", "b"; function: ARRAY[\'a\',\'b\']) and one ${{<comment key>}} placeholder per configured comment field (empty/absent → NULL).' },
   { key: 'remove_role', title: 'Remove role', prop: 'removeRole', placeholders: ['loginname', 'rolename'],
     contract: 'Drops the role from the cluster.' },
+  { key: 'rename_role', title: 'Rename role', prop: 'renameRole', placeholders: ['loginname', 'new_loginname'],
+    contract: 'Renames the role; ${loginname} is the current name, ${new_loginname} the new one. Runs first in the cluster\'s transaction, so the ops after it use the new name.' },
   { key: 'grant_parents', title: 'Grant parents', prop: 'grantParents', placeholders: ['loginname', 'parent_roles'],
     contract: 'Grants membership of the given parent roles to the role.' },
   { key: 'revoke_parents', title: 'Revoke parents', prop: 'revokeParents', placeholders: ['loginname', 'parent_roles'],
@@ -2366,6 +2395,7 @@ function settingsDirty() {
   if (currentThemePref() !== (state.ui?.theme || 'system')) return true;
   if (currentCommentViewPref() !== (state.ui?.commentDefaultView || 'raw')) return true;
   if (currentStageCreateOnAdd() !== !!state.ui?.stageCreateOnTargetAdd) return true;
+  if (currentSuppressMD5Warning() !== !!state.ui?.suppressMd5RenameWarning) return true;
   if (currentCheckForUpdates() !== autoCheckUpdates()) return true;
   if (JSON.stringify(currentPasswordGen()) !== JSON.stringify(state.ui?.passwordGen || DEFAULT_PASSWORD_GEN)) return true;
   const conc = parseInt(document.getElementById('batch-concurrency')?.value, 10) || 5;
@@ -2394,6 +2424,7 @@ function discardSettings() {
   applyTheme(state?.ui?.theme || 'system');
   setCommentViewButtons(state?.ui?.commentDefaultView || 'raw');
   { const c = document.getElementById('ui-stage-create'); if (c) c.checked = !!state?.ui?.stageCreateOnTargetAdd; }
+  { const c = document.getElementById('ui-suppress-md5'); if (c) c.checked = !!state?.ui?.suppressMd5RenameWarning; }
   { const c = document.getElementById('ui-check-updates'); if (c) c.checked = autoCheckUpdates(); }
   setPasswordGenControls(state?.ui?.passwordGen);
   document.getElementById('batch-concurrency').value = String(state?.batch?.maxConcurrency || 5);
@@ -2469,6 +2500,7 @@ async function saveSettings() {
         theme: currentThemePref(),
         commentDefaultView: currentCommentViewPref(),
         stageCreateOnTargetAdd: currentStageCreateOnAdd(),
+        suppressMd5RenameWarning: currentSuppressMD5Warning(),
         checkForUpdates: currentCheckForUpdates(),
         passwordGen: currentPasswordGen(),
       },
@@ -3315,7 +3347,7 @@ function renderAlterDetail() {
   } else if (alterSelected && alterDetails.length) {
     identity.classList.remove('hidden');
     hint.classList.add('hidden');
-    if (login) login.readOnly = true;
+    if (login) login.readOnly = false; // editable: a changed name stages a rename
     // Present-on shows three states against the searched scope: existing (plain), pending-add
     // ("+" prefix, group colour kept; synthetic exists:false rows) and pending-remove (red
     // strikethrough). The ✎ button
@@ -3440,7 +3472,26 @@ function renderAlterDetail() {
   const pwInput = /** @type {HTMLInputElement} */ (document.getElementById('alter-password'));
   if (pwInput) pwInput.value = alterPassword;
   syncPasswordControls();
+  renderRenameState();
   updateOpsFooter();
+}
+
+/** The ↺ beside the login input (Alter, role loaded): always shown so the row never shifts, disabled
+ *  until a rename is staged; its hint names the loaded name it reverts to. Never writes the input
+ *  itself, so typing is not disturbed. */
+function renderRenameState() {
+  const box = document.getElementById('role-rename');
+  if (!box) return;
+  const show = !isCreateMode() && !!alterSelected;
+  box.classList.toggle('hidden', !show);
+  if (!show) {
+    box.innerHTML = '';
+    return;
+  }
+  const label = alterRenameTo ? `Renamed from: ${alterSelected}` : 'Undo rename';
+  box.innerHTML =
+    `<button type="button" class="scope-act" id="btn-rename-revert" title="${escapeAttr(label)}" aria-label="${escapeAttr(label)}"` +
+    `${alterRenameTo ? '' : ' disabled'}>${ICONS.discard}</button>`;
 }
 
 /** Show the right pinned footer for the active op: Create → Run; Alter → Save/Remove
@@ -4044,10 +4095,13 @@ function buildAlterClusterOps() {
   // inline editor is disabled and per-cluster desired comments come from the Comments dialog
   // (commentOverrides).
   const desiredInline = commentEditor.varies ? null : assembleComment();
+  // A staged rename runs first on every existing cluster, so every later op addresses the new name.
+  const login = alterRenameTo || alterSelected;
 
   for (const d of alterDetails) {
-    // Presence: a cluster flagged for removal gets a single remove_role (nothing else); a synthetic
-    // exists:false row (Alter presence-add) gets a create_role prepended to its grant/comment diff.
+    // Presence: a cluster flagged for removal gets a single remove_role (nothing else, so it is not
+    // renamed and drops the OLD name); a synthetic exists:false row (Alter presence-add) gets a
+    // create_role prepended to its grant/comment diff.
     if (roleRemoveClusters.has(d.clusterId)) {
       out.push({ clusterId: d.clusterId, operations: [{ operation: 'remove_role', removeRole: { loginName: alterSelected } }] });
       continue;
@@ -4062,14 +4116,14 @@ function buildAlterClusterOps() {
       .filter(([role, ids]) => ids.has(d.clusterId) && parents.includes(role))
       .map(([role]) => role);
     if (toGrant.length) {
-      ops.push({ operation: 'grant_parents', grantParents: { loginName: alterSelected, parentRoles: toGrant.join(',') } });
+      ops.push({ operation: 'grant_parents', grantParents: { loginName: login, parentRoles: toGrant.join(',') } });
     }
     if (toRevoke.length) {
-      ops.push({ operation: 'revoke_parents', revokeParents: { loginName: alterSelected, parentRoles: toRevoke.join(',') } });
+      ops.push({ operation: 'revoke_parents', revokeParents: { loginName: login, parentRoles: toRevoke.join(',') } });
     }
     if (alterDoPassword) {
       // Checkbox alone stages the op; an empty value is a legitimate reset (PASSWORD '').
-      ops.push({ operation: 'change_password', changePassword: { loginName: alterSelected, newPassword: alterPassword } });
+      ops.push({ operation: 'change_password', changePassword: { loginName: login, newPassword: alterPassword } });
     }
 
     // Attributes: combine all enable/disable keywords into ONE ALTER ROLE … WITH … statement.
@@ -4082,7 +4136,7 @@ function buildAlterClusterOps() {
       else if (disableIds && disableIds.has(d.clusterId) && on) kws.push(a.off);
     }
     if (kws.length) {
-      ops.push({ operation: 'set_attribute', setAttribute: { loginName: alterSelected, attribute: kws.join(' ') } });
+      ops.push({ operation: 'set_attribute', setAttribute: { loginName: login, attribute: kws.join(' ') } });
     }
 
     // Settings: SET name=value where pending & not already that value; RESET where pending.
@@ -4091,12 +4145,12 @@ function buildAlterClusterOps() {
       if (!ids.has(d.clusterId)) continue;
       const { name, value } = cfgParse(key);
       if (settings[name] !== value) {
-        ops.push({ operation: 'set_config', setConfig: { loginName: alterSelected, configName: name, configValue: value } });
+        ops.push({ operation: 'set_config', setConfig: { loginName: login, configName: name, configValue: value } });
       }
     }
     for (const [name, ids] of alterConfigReset) {
       if (ids.has(d.clusterId) && Object.prototype.hasOwnProperty.call(settings, name)) {
-        ops.push({ operation: 'reset_config', resetConfig: { loginName: alterSelected, configName: name } });
+        ops.push({ operation: 'reset_config', resetConfig: { loginName: login, configName: name } });
       }
     }
 
@@ -4106,8 +4160,14 @@ function buildAlterClusterOps() {
     if (desiredComment !== null && canonicalComment(desiredComment) !== canonicalComment(d.comment || '')) {
       ops.push({
         operation: 'set_comment',
-        setComment: { loginName: alterSelected, comment: desiredComment, commentFields: commentFieldArgs(desiredComment) },
+        setComment: { loginName: login, comment: desiredComment, commentFields: commentFieldArgs(desiredComment) },
       });
+    }
+
+    // Rename: prepended to an existing cluster's diff, so the password (hashed under the new name —
+    // what an MD5 site needs) and everything else apply to the renamed role in the same transaction.
+    if (d.exists && alterRenameTo) {
+      ops.unshift({ operation: 'rename_role', renameRole: { loginName: alterSelected, newLoginName: alterRenameTo } });
     }
 
     // Alter presence-add: create the role first (Create mode has its own buildCreateClusterOps, so
@@ -4118,7 +4178,7 @@ function buildAlterClusterOps() {
       ops.unshift({
         operation: 'create_role',
         createRole: {
-          loginName: alterSelected,
+          loginName: login,
           parentRoles: toGrant.join(','),
           commentFields: commentFieldArgs(desiredComment || ''),
         },
@@ -4147,6 +4207,8 @@ async function saveAlterations() {
   if (!requireBackend(errEl, btn)) return;
   const clusters = buildAlterClusterOps();
   if (!clusters.length) return; // Save is disabled when clean; nothing to do
+  const renamedTo = alterRenameTo;
+  if (renamedTo && !(await confirmRename(errEl, btn))) return;
 
   // Pending presence removals are a lone remove_role — pre-flight them like the Remove role
   // button does. Cancelling aborts the whole save (as cancelling the production confirm does);
@@ -4178,6 +4240,11 @@ async function saveAlterations() {
   // stay checked (and re-apply on the next Save) regardless of what the reload/re-render below does.
   clearPasswordEditor();
   if (!alterSelected) return;
+  // Fully successful: the role now goes by its new name everywhere we touched — load it under that.
+  if (renamedTo) {
+    alterSelected = renamedTo;
+    alterRenameTo = '';
+  }
   // Fully successful: the comment we sent is now live on every cluster. Reconcile the local comment
   // baseline optimistically and drop the staged overrides, so the "Comments differ" banner reflects
   // what we just wrote even if a cluster is momentarily unreachable on the reload below (otherwise
@@ -4198,6 +4265,75 @@ async function saveAlterations() {
   }
   loadCommentEditor();
   renderAlterDetail(); // recomputes dirty ⇒ Save disabled when nothing remains
+}
+
+/** Save pre-flight for a staged rename: validate the new name, then look it up across the searched
+ *  scope. Where it already exists the rename (or a presence-add's create) would fail on that cluster
+ *  alone and leave the role named differently across clusters, so a collision is a STOP — a
+ *  Close-only popup, nothing sent. Otherwise the only thing left to say is the MD5 note: asked about
+ *  when it applies, and no popup at all when it doesn't (Set password ticked, or suppressed).
+ *  Resolves false to abort the whole Save. */
+async function confirmRename(errEl, btn) {
+  const from = alterSelected;
+  const to = alterRenameTo;
+  if (!ROLE_NAME_RE.test(to)) {
+    showInlineError(errEl, 'Enter a login name (no commas)');
+    flashButton(btn, { cls: 'flash-err' });
+    return false;
+  }
+  const kept = alterDetails.filter((d) => !roleRemoveClusters.has(d.clusterId));
+  const renamed = kept.filter((d) => d.exists).sort(byGroupThenAlias).map((d) => d.alias);
+  let taken = [];
+  try {
+    if (btn) btn.disabled = true;
+    const found = await backend().LoadRoleDetails({
+      loginName: to,
+      categoryIds: alterTargets.categoryIds,
+      clusterIds: alterTargets.clusterIds,
+      auth: getAuth(),
+    });
+    const keptIds = new Set(kept.map((d) => d.clusterId));
+    taken = (found || []).filter((d) => d.exists && keptIds.has(d.clusterId)).sort(byGroupThenAlias).map((d) => d.alias);
+  } catch {
+    /* pre-flight is best-effort (as in Create); a collision still surfaces per cluster on run */
+  } finally {
+    if (btn) btn.disabled = false; // still dirty at this point, so re-enabling is correct
+  }
+  if (taken.length) {
+    await askConfirmWithCheck(
+      'Name already exists',
+      `"${to}" already exists on ${taken.join(', ')}. The rename would fail there while going ahead on the other clusters, leaving the role named differently across clusters — so nothing was saved. Choose another name.`,
+      { canProceed: false }
+    );
+    return false;
+  }
+  if (alterDoPassword || state?.ui?.suppressMd5RenameWarning) return true;
+  const { ok, checked } = await askConfirmWithCheck(
+    'Rename role',
+    `Rename "${from}" to "${to}" on ${renamed.join(', ') || 'no existing cluster'}.\n\n` +
+      'A password stored as an MD5 hash is cleared by a rename (SCRAM passwords are kept). Tick Set password to set a new one in the same save.',
+    { checkLabel: 'Suppress this warning' }
+  );
+  if (checked) await suppressMD5RenameWarning();
+  return ok;
+}
+
+/** Persist ui.suppress_md5_rename_warning from the Rename confirm. Writes the SAVED ui block (not the
+ *  Settings page's drafts), then mirrors the new value into the Settings checkbox so that page
+ *  neither turns dirty nor keeps showing the old value. A failure only costs the user seeing the
+ *  note again, so it is logged rather than surfaced. */
+async function suppressMD5RenameWarning() {
+  const ui = { ...(state?.ui || {}), suppressMd5RenameWarning: true };
+  try {
+    await backend().SaveUISettings(ui);
+  } catch (e) {
+    console.error('saving the MD5 warning suppression failed', e);
+    return;
+  }
+  if (state) state.ui = ui;
+  const c = /** @type {HTMLInputElement} */ (document.getElementById('ui-suppress-md5'));
+  if (c) c.checked = true;
+  refreshSettingsDirty();
 }
 
 /** Remove the role on every cluster where it exists (immediate, red button). */
@@ -4706,9 +4842,33 @@ document.getElementById('alter-detail')?.addEventListener('input', (ev) => {
   }
 });
 
+// Login name: in Alter mode a name different from the loaded one stages a rename (blank = none).
+function onRoleLoginInput() {
+  if (isCreateMode() || !alterSelected) return;
+  const v = document.getElementById('role-login')?.value.trim() || '';
+  alterRenameTo = v && v !== alterSelected ? v : '';
+  renderRenameState();
+  updateOpsFooter();
+}
+/** Put the loaded name back in the field and drop the staged rename. */
+function revertRename() {
+  const login = document.getElementById('role-login');
+  if (login) login.value = alterSelected || '';
+  onRoleLoginInput();
+}
+document.getElementById('role-login')?.addEventListener('input', onRoleLoginInput);
+document.getElementById('role-login')?.addEventListener('change', () => {
+  // Leaving the field blank stages nothing — show the name that will actually be kept.
+  if (!isCreateMode() && alterSelected && !document.getElementById('role-login')?.value.trim()) revertRename();
+});
+document.getElementById('role-rename')?.addEventListener('click', (ev) => {
+  if (ev.target.closest('#btn-rename-revert')) revertRename();
+});
+
 // Comment editor: value/raw edits write straight into commentEditor (never clobbered by
-// renderAlterDetail, which does not touch #role-comment-editor).
-document.getElementById('role-comment-editor')?.addEventListener('input', (ev) => {
+// renderAlterDetail, which does not touch #role-comment-editor), then re-evaluate Save's dirty
+// state — a comment edit is a pending change like any other.
+function onCommentEditorInput(ev) {
   const t = ev.target;
   if (t.dataset && t.dataset.cfKey) commentEditor.values[t.dataset.cfKey] = t.value;
   else if (t.id === 'rce-raw') {
@@ -4721,10 +4881,15 @@ document.getElementById('role-comment-editor')?.addEventListener('input', (ev) =
       fieldsBtn.title = block ? 'Comment is plain text (not JSON) — edit it in Raw' : '';
     }
   }
-});
+  updateOpsFooter();
+}
+document.getElementById('role-comment-editor')?.addEventListener('input', onCommentEditorInput);
 document.getElementById('rce-mode')?.addEventListener('click', (ev) => {
   const btn = ev.target.closest('.seg-btn');
-  if (btn) switchCommentMode(btn.dataset.mode);
+  if (btn) {
+    switchCommentMode(btn.dataset.mode);
+    updateOpsFooter();
+  }
 });
 
 // Scope dialog
@@ -4814,6 +4979,7 @@ document.getElementById('comment-view-pref')?.addEventListener('click', (ev) => 
 
 document.getElementById('batch-concurrency')?.addEventListener('input', refreshSettingsDirty);
 document.getElementById('ui-stage-create')?.addEventListener('change', refreshSettingsDirty);
+document.getElementById('ui-suppress-md5')?.addEventListener('change', refreshSettingsDirty);
 document.getElementById('ui-check-updates')?.addEventListener('change', refreshSettingsDirty);
 document.getElementById('pwgen-length')?.addEventListener('input', refreshSettingsDirty);
 ['pwgen-lower', 'pwgen-upper', 'pwgen-digits', 'pwgen-symbols', 'pwgen-exclude-similar'].forEach((id) =>

@@ -886,6 +886,11 @@ tr:last-child td { border-bottom: none; }
    it was 50% of the old 26.25rem cap, so the login row is unchanged. */
 .ri-login { max-width: 13.125rem; }
 #role-login[readonly] { opacity: 0.7; cursor: default; }
+/* Alter: a ↺ beside the input undoes a staged rename (disabled until the name changes), bottom-aligned
+   so the ↺ (a .scope-act, control height) sits level with the input rather than its label. */
+.ri-login-row { display: flex; align-items: flex-end; gap: 0.5rem; }
+.ri-rename { display: inline-flex; }
+.ri-rename.hidden { display: none; }
 
 /* Inline comment editor (Fields / Raw). */
 .role-comment-editor {
@@ -1135,10 +1140,12 @@ tr:last-child td { border-bottom: none; }
 
 #batch-concurrency { width: 5rem; }
 
+#confirm-form label.inline { flex-direction: row; align-items: center; gap: 0.5rem; margin-bottom: 1rem; }
 #confirm-dialog p {
   margin: 0.5rem 0 1rem;
   line-height: 1.45;
   color: var(--text);
+  white-space: pre-line; /* a message may carry "\n\n"-separated paragraphs (Rename role) */
 }
 
 /* ---------------- Dialogs: shared chrome ----------------

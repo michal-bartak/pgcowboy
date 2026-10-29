@@ -47,6 +47,7 @@ Clicking a command opens its editor: execution mode, the template text, clickabl
 |-----------|------------------|
 | `create_role` | `CREATE ROLE ${loginname}` |
 | `remove_role` | `DROP ROLE ${loginname}` |
+| `rename_role` | `ALTER ROLE ${loginname} RENAME TO ${new_loginname}` |
 | `grant_parents` | `GRANT ${parent_roles} TO ${loginname}` |
 | `revoke_parents` | `REVOKE ${parent_roles} FROM ${loginname}` |
 | `change_password` | `ALTER ROLE ${loginname} PASSWORD ${new_password}` |
@@ -62,6 +63,7 @@ Because the defaults are plain DDL, each operation needs whatever its statement 
 | Operation | Privilege it needs |
 |-----------|--------------------|
 | `create_role`, `remove_role` | `CREATEROLE` |
+| `rename_role` | `CREATEROLE`, plus `ADMIN OPTION` on the role (PostgreSQL 16+); the role cannot be the connecting user |
 | `grant_parents`, `revoke_parents` | `ADMIN OPTION` on each parent role (PostgreSQL 16+) |
 | `change_password`, `set_comment` | `CREATEROLE`, plus `ADMIN OPTION` on the role (PostgreSQL 16+) |
 | `set_attribute` — Login, Inherit, Create role | `CREATEROLE`, plus `ADMIN OPTION` on the role (PostgreSQL 16+) |

@@ -314,6 +314,43 @@ test('buildAlterClusterOps: unchanged consistent-comment role is not dirty (idem
   assert.deepEqual(ops, []);
 });
 
+// Typing into the loaded role's comment editor must enable Save changes — in both modes. The
+// handler used to update commentEditor without re-evaluating the footer, so Save stayed disabled.
+function saveEnabledAfterCommentInput(mode, target) {
+  return evalJSON(`(() => {
+    ${SETUP_STATE}
+    state.ui.commentDefaultView = '${mode}';
+    currentOp = 'alter_user';
+    alterSelected = 'bob';
+    resetEditMaps();
+    alterDetails = [{ clusterId:'c1', exists:true, comment:'{"full_name":"A"}', parents:[], attributes:{}, settings:{} }];
+    commentEditor = editorFromComment('{"full_name":"A"}', false);
+    const save = { disabled: true };
+    const realGet = document.getElementById;
+    document.getElementById = (id) => (id === 'btn-alter-save' ? save : realGet(id));
+    try {
+      updateOpsFooter();
+      const before = !save.disabled;
+      onCommentEditorInput({ target: ${target} });
+      return { before, after: !save.disabled };
+    } finally {
+      document.getElementById = realGet;
+    }
+  })()`);
+}
+
+test('comment editor: a Fields edit enables Save changes', () => {
+  assert.deepEqual(
+    saveEnabledAfterCommentInput('fields', `{ dataset: { cfKey: 'full_name' }, value: 'B' }`),
+    { before: false, after: true });
+});
+
+test('comment editor: a Raw edit enables Save changes', () => {
+  assert.deepEqual(
+    saveEnabledAfterCommentInput('raw', `{ dataset: {}, id: 'rce-raw', value: '{"full_name":"B"}' }`),
+    { before: false, after: true });
+});
+
 test('buildAlterClusterOps: presence-add with a consistent comment → create_role + set_comment(consistent)', () => {
   const ops = buildOps(`
     alterScopeClusters = [{clusterId:'c1',alias:'c1',category:'p'},{clusterId:'cX',alias:'cX',category:'p'}];
@@ -352,6 +389,160 @@ test('buildAlterClusterOps: a pending grant emits grant_parents', () => {
     commentEditor = editorFromComment('{"full_name":"A"}', false);
     alterAdd.set('gr_new', new Set(['c1']));`);
   assert.deepEqual(ops, [{ clusterId: 'c1', ops: ['grant_parents'] }]);
+});
+
+// ---------------------------------------------------------------------------------------------
+// Rename: a staged alterRenameTo is the FIRST op of each existing cluster's transaction, and every op
+// after it addresses the new name. Returns [{clusterId, ops:[{op, login, …}]}].
+function renameOps(setup) {
+  return evalJSON(`(() => {
+    ${SETUP_STATE}
+    currentOp = 'alter_user';
+    alterSelected = 'bob';
+    resetEditMaps();
+    alterRenameTo = 'robert';
+    alterDetails = [{ clusterId:'c1', exists:true, comment:'', parents:[], attributes:{}, settings:{} }];
+    commentEditor = editorFromComment('', false);
+    ${setup}
+    return buildAlterClusterOps().map((c) => ({ clusterId: c.clusterId, ops: c.operations.map((o) => {
+      const p = Object.values(o).find((v) => v && typeof v === 'object');
+      return o.operation === 'rename_role'
+        ? { op: o.operation, from: p.loginName, to: p.newLoginName }
+        : { op: o.operation, login: p.loginName };
+    }) }));
+  })()`);
+}
+
+test('rename: a rename alone is one rename_role per existing cluster (so Save is dirty)', () => {
+  assert.deepEqual(renameOps(''), [{ clusterId: 'c1', ops: [{ op: 'rename_role', from: 'bob', to: 'robert' }] }]);
+});
+
+test('rename: runs first, and the later ops (incl. the password) use the new name', () => {
+  const r = renameOps(`
+    alterAdd.set('gr_new', new Set(['c1']));
+    alterDoPassword = true; alterPassword = 'pw';`);
+  assert.deepEqual(r[0].ops, [
+    { op: 'rename_role', from: 'bob', to: 'robert' },
+    { op: 'grant_parents', login: 'robert' },
+    { op: 'change_password', login: 'robert' },
+  ]);
+});
+
+test('rename: a presence-add creates the NEW name and is not renamed', () => {
+  const r = renameOps(`
+    alterDetails.push({ clusterId:'cX', exists:false, comment:'', parents:[], attributes:{}, settings:{} });`);
+  assert.deepEqual(r.find((c) => c.clusterId === 'cX').ops, [{ op: 'create_role', login: 'robert' }]);
+});
+
+test('rename: a presence-remove drops the OLD name and is not renamed', () => {
+  const r = renameOps(`roleRemoveClusters = new Set(['c1']);`);
+  assert.deepEqual(r, [{ clusterId: 'c1', ops: [{ op: 'remove_role', login: 'bob' }] }]);
+});
+
+test('rename: typing a new login stages it; the loaded name or a blank field stages nothing', () => {
+  const r = evalJSON(`(() => {
+    ${SETUP_STATE}
+    currentOp = 'alter_user';
+    alterSelected = 'bob';
+    resetEditMaps();
+    alterDetails = [{ clusterId:'c1', exists:true, comment:'', parents:[], attributes:{}, settings:{} }];
+    commentEditor = editorFromComment('', false);
+    const input = { value: '' };
+    const save = { disabled: true };
+    const realGet = document.getElementById;
+    document.getElementById = (id) => (id === 'role-login' ? input : id === 'btn-alter-save' ? save : realGet(id));
+    try {
+      const step = (v) => { input.value = v; onRoleLoginInput(); return { to: alterRenameTo, save: !save.disabled }; };
+      return [step(' robert '), step('bob'), step('  ')];
+    } finally {
+      document.getElementById = realGet;
+    }
+  })()`);
+  assert.deepEqual(r, [{ to: 'robert', save: true }, { to: '', save: false }, { to: '', save: false }]);
+});
+
+test('rename: the ↺ is always shown for a loaded role, disabled until a rename is staged', () => {
+  const r = evalJSON(`(() => {
+    ${SETUP_STATE}
+    currentOp = 'alter_user';
+    alterSelected = 'bob';
+    resetEditMaps();
+    const box = { innerHTML: '', hidden: false, classList: { toggle(_c, on) { box.hidden = on; } } };
+    const realGet = document.getElementById;
+    document.getElementById = (id) => (id === 'role-rename' ? box : realGet(id));
+    try {
+      const snap = () => ({ hidden: box.hidden, disabled: / disabled>/.test(box.innerHTML),
+        title: (box.innerHTML.match(/title="([^"]*)"/) || [])[1] || '', text: box.innerHTML.replace(/<[^>]*>/g, '') });
+      renderRenameState();
+      const clean = snap();
+      alterRenameTo = 'robert';
+      renderRenameState();
+      const staged = snap();
+      currentOp = 'create_role';
+      renderRenameState();
+      return { clean, staged, create: snap() };
+    } finally {
+      document.getElementById = realGet;
+    }
+  })()`);
+  assert.deepEqual(r.clean, { hidden: false, disabled: true, title: 'Undo rename', text: '' });
+  assert.deepEqual(r.staged, { hidden: false, disabled: false, title: 'Renamed from: bob', text: '' }); // no visible label
+  assert.equal(r.create.hidden, true);
+});
+
+// confirmRename with the backend + popup stubbed. `found` = clusters where the NEW name already
+// exists; the popup stub records each ask and ticks the checkbox whenever one is offered.
+function renameConfirm(steps, found = []) {
+  return evalJSONAsync(`(async () => {
+    ${SETUP_STATE}
+    currentOp = 'alter_user';
+    alterSelected = 'bob';
+    resetEditMaps();
+    alterRenameTo = 'robert';
+    alterDetails = [
+      { clusterId:'c1', alias:'c1', category:'p', exists:true, comment:'', parents:[], attributes:{}, settings:{} },
+      { clusterId:'c2', alias:'c2', category:'p', exists:true, comment:'', parents:[], attributes:{}, settings:{} },
+    ];
+    const saved = [];
+    window.go = { main: { App: {
+      LoadRoleDetails: async () => ${JSON.stringify(found)}.map((id) => ({ clusterId:id, alias:id, category:'p', exists:true })),
+      SaveUISettings: async (ui) => { saved.push({ ...ui }); },
+    } } };
+    const asked = [];
+    const realAsk = askConfirmWithCheck;
+    askConfirmWithCheck = async (title, message, { checkLabel = '', canProceed = true } = {}) => {
+      asked.push({ title, md5: /MD5/.test(message), checkLabel, canProceed });
+      return { ok: canProceed, checked: !!checkLabel };
+    };
+    try {
+      const results = [];
+      ${steps}
+      return { results, asked, saved: saved.map((u) => u.suppressMd5RenameWarning) };
+    } finally {
+      askConfirmWithCheck = realAsk;
+    }
+  })()`);
+}
+
+test('rename confirm: the MD5 note offers "Suppress this warning"; once suppressed there is no popup at all', async () => {
+  const r = await renameConfirm(`
+    results.push(await confirmRename(null, null));   // asks, user ticks Suppress
+    results.push(await confirmRename(null, null));   // suppressed → straight through
+    state.ui.suppressMd5RenameWarning = false;
+    alterDoPassword = true;                           // Set password ticked → nothing to warn about
+    results.push(await confirmRename(null, null));`);
+  assert.deepEqual(r.results, [true, true, true]);
+  assert.deepEqual(r.asked, [{ title: 'Rename role', md5: true, checkLabel: 'Suppress this warning', canProceed: true }]);
+  assert.deepEqual(r.saved, [true]); // persisted once, from the only popup
+});
+
+test('rename confirm: a name collision is a Close-only stop, even with the MD5 note suppressed', async () => {
+  const r = await renameConfirm(`
+    state.ui.suppressMd5RenameWarning = true;
+    results.push(await confirmRename(null, null));`, ['c2']);
+  assert.deepEqual(r.results, [false]);
+  assert.deepEqual(r.asked, [{ title: 'Name already exists', md5: false, checkLabel: '', canProceed: false }]);
+  assert.deepEqual(r.saved, []);
 });
 
 // Regression: the parents selected for a newly-created role must reach BOTH the create_role

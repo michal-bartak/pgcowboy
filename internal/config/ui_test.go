@@ -59,6 +59,19 @@ func TestUpdateUIPersistsStageCreateOnTargetAdd(t *testing.T) {
 	}
 }
 
+func TestUpdateUIPersistsSuppressMD5RenameWarning(t *testing.T) {
+	s := tmpStore(t)
+	if s.Get().UI.SuppressMD5RenameWarning {
+		t.Fatal("suppress_md5_rename_warning should default to off")
+	}
+	if err := s.UpdateUI(model.UISettings{Theme: "dark", SuppressMD5RenameWarning: true}); err != nil {
+		t.Fatal(err)
+	}
+	if !s.Get().UI.SuppressMD5RenameWarning {
+		t.Fatal("suppress_md5_rename_warning not persisted")
+	}
+}
+
 func TestUICheckForUpdatesAndSeenVersion(t *testing.T) {
 	s := tmpStore(t)
 	// nil pointer (never set) → AutoCheck defaults ON.

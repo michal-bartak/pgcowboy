@@ -300,6 +300,7 @@ comment, `${{comment}}` is a JSON key called `comment`. A comment field cannot b
 |-----------|----------------|---------------------------|
 | `create_role` | `loginname`, `parent_roles`, `${{<comment field>}}` | `loginname` identifier; `parent_roles` = statement → quoted identifier list, function → inline `ARRAY['a','b']`; comment fields typed (empty/absent → `NULL`) |
 | `remove_role` | `loginname`, `rolename` | Identifiers |
+| `rename_role` | `loginname`, `new_loginname` | Identifiers (current name, new name) |
 | `grant_parents` | `loginname`, `parent_roles` | Identifiers; `parent_roles` = comma-separated identifier list |
 | `revoke_parents` | `loginname`, `parent_roles` | Same as grant_parents |
 | `change_password` | `loginname`, `new_password` | Identifier + literal (password) |

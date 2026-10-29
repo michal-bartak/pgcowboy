@@ -23,6 +23,7 @@ func TestValidateOperation_acceptsWellFormedParams(t *testing.T) {
 	}{
 		{"createRole", model.OperationSpec{Operation: OpCreateRole, CreateRole: &model.CreateRoleParams{LoginName: "jdoe"}}},
 		{"removeRole", model.OperationSpec{Operation: OpRemoveRole, RemoveRole: &model.RemoveRoleParams{LoginName: "jdoe"}}},
+		{"renameRole", model.OperationSpec{Operation: OpRenameRole, RenameRole: &model.RenameRoleParams{LoginName: "jdoe", NewLoginName: "john.doe"}}},
 		{"grantParents", model.OperationSpec{Operation: OpGrantParents, GrantParents: &model.GrantParentsParams{LoginName: "jdoe", ParentRoles: "gr_a,gr_b"}}},
 		{"revokeParents", model.OperationSpec{Operation: OpRevokeParents, RevokeParents: &model.RevokeParentsParams{LoginName: "jdoe", ParentRoles: "gr_a"}}},
 		{"changePassword", model.OperationSpec{Operation: OpChangePassword, ChangePassword: &model.ChangePasswordParams{LoginName: "jdoe", NewPassword: "secret"}}},
@@ -51,6 +52,30 @@ func TestValidateOperation_requiresLogin(t *testing.T) {
 				t.Fatalf("got: %v", err)
 			}
 		})
+	}
+}
+
+// A rename needs both names, and they must differ (a same-name rename is a no-op that PostgreSQL
+// would reject as "role already exists").
+func TestValidateOperation_renameRoleNeedsADistinctNewName(t *testing.T) {
+	cfg := testConfig()
+	for _, tc := range []struct {
+		name, from, to, want string
+	}{
+		{"blank old", " ", "b", "login name is required"},
+		{"blank new", "a", "  ", "new login name is required"},
+		{"same name", "a", "a", "same as the current"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			err := ValidateOperation(cfg, model.OperationSpec{Operation: OpRenameRole,
+				RenameRole: &model.RenameRoleParams{LoginName: tc.from, NewLoginName: tc.to}})
+			if err == nil || !strings.Contains(err.Error(), tc.want) {
+				t.Fatalf("got: %v, want %q", err, tc.want)
+			}
+		})
+	}
+	if err := ValidateOperation(cfg, model.OperationSpec{Operation: OpRenameRole}); err == nil {
+		t.Fatal("nil params accepted")
 	}
 }
 
@@ -205,6 +230,12 @@ func TestBuildQuery_allOperations(t *testing.T) {
 			operation:  OpRemoveRole,
 			spec:       model.OperationSpec{Operation: OpRemoveRole, RemoveRole: &model.RemoveRoleParams{LoginName: "jdoe"}},
 			wantSubstr: []string{`DROP ROLE "jdoe"`},
+		},
+		{
+			name:       "rename_role",
+			operation:  OpRenameRole,
+			spec:       model.OperationSpec{Operation: OpRenameRole, RenameRole: &model.RenameRoleParams{LoginName: "jdoe", NewLoginName: "John.Doe"}},
+			wantSubstr: []string{`ALTER ROLE "jdoe" RENAME TO "John.Doe"`},
 		},
 		{
 			name:       "grant_parents",

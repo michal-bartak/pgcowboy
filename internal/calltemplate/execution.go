@@ -171,6 +171,11 @@ func placeholderKindFor(operation string, ph parsedPlaceholder, commentFields []
 		if field == "loginname" {
 			return fieldIdentifier, nil
 		}
+	case "rename_role":
+		// Both the current and the new name are role identifiers (double-quoted, case kept).
+		if field == "loginname" || field == "new_loginname" {
+			return fieldIdentifier, nil
+		}
 	case "grant_parents", "revoke_parents":
 		switch field {
 		case "loginname":

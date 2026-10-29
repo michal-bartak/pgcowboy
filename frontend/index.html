@@ -51,7 +51,10 @@
             <div id="role-form" class="op-form active">
               <div id="role-present" class="alter-present hidden"></div>
               <div id="role-identity" class="role-identity">
-                <label class="ri-login">Login name <input id="role-login" name="loginName" required autocapitalize="none" autocomplete="off" spellcheck="false" /></label>
+                <div class="ri-login-row">
+                  <label class="ri-login">Login name <input id="role-login" name="loginName" required autocapitalize="none" autocomplete="off" spellcheck="false" /></label>
+                  <span id="role-rename" class="ri-rename hidden"></span>
+                </div>
                 <div id="role-comment-editor" class="role-comment-editor">
                   <div class="rce-toolbar">
                     <span class="rce-label">Comment
@@ -153,6 +156,15 @@
                 <span>Stage role creation for added targets</span>
               </label>
               <button type="button" class="q-hint" data-hint="In Alter role, when you add a target where the role doesn't exist yet: on, its creation is staged for that cluster automatically; off, the cluster is only brought into view — you can still add the role yourself from the Present on section.">?</button>
+            </div>
+          </div>
+          <div class="settings-row settings-row-gap">
+            <div class="settings-check-line">
+              <label class="settings-check">
+                <input type="checkbox" id="ui-suppress-md5" />
+                <span>Suppress the MD5 password warning on rename</span>
+              </label>
+              <button type="button" class="q-hint" data-hint="Hides the note in the Rename role confirmation that a rename clears MD5-hashed passwords. Suppression might be useful for authentication methods other than MD5, i.e. SCRAM, LDAP etc.">?</button>
             </div>
           </div>
           <div class="settings-row settings-row-gap">
@@ -403,6 +415,7 @@
     <div id="confirm-form">
       <h2 id="confirm-dialog-title">Confirm</h2>
       <p id="confirm-dialog-message"></p>
+      <label id="confirm-dialog-check-row" class="inline hidden"><input type="checkbox" id="confirm-dialog-check" /> <span id="confirm-dialog-check-label"></span></label>
       <menu>
         <button type="button" id="confirm-dialog-cancel">Cancel</button>
         <button type="button" class="primary" id="confirm-dialog-ok">Continue</button>

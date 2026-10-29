@@ -31,6 +31,20 @@ func TestMigrateOne_legacyNameAndParams(t *testing.T) {
 	}
 }
 
+// A config written before rename_role existed has no key for it; loading it must supply the
+// default rather than leave an empty template that fails validation.
+func TestMigrateDBFunctions_fillsMissingRenameRole(t *testing.T) {
+	fns := DefaultConfig().DBFunctions
+	fns.RenameRole = model.DBFunction{}
+	migrateDBFunctions(&fns)
+	if want := "ALTER ROLE ${loginname} RENAME TO ${new_loginname}"; fns.RenameRole.Call != want {
+		t.Fatalf("got: %q, want %q", fns.RenameRole.Call, want)
+	}
+	if err := validateDBFunctions(fns); err != nil {
+		t.Fatalf("migrated defaults should validate: %v", err)
+	}
+}
+
 func TestValidateDBFunctions_rejectsInvalidPlaceholder(t *testing.T) {
 	fns := DefaultConfig().DBFunctions
 	fns.RemoveRole = model.DBFunction{Call: "fn(${not_allowed})"}

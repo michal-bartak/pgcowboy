@@ -91,6 +91,7 @@ export default defineConfig({
           items: [
             { label: 'Overview', link: '/usage/' },
             { label: 'Finding the role to alter', link: '/usage/find-role/' },
+            { label: 'Renaming a role', link: '/usage/rename-role/' },
             { label: 'Altering the comment', link: '/usage/comments/' },
             { label: 'Altering role parents', link: '/usage/parent-roles/' },
             { label: 'Altering attributes', link: '/usage/attributes/' },

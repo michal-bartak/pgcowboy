@@ -30,6 +30,11 @@ db_functions:
   remove_role:
     execution: statement
     call: "DROP ROLE ${loginname}"
+  rename_role:
+    # ${loginname} = current name, ${new_loginname} = new name (both identifiers). Runs first in
+    # the cluster's transaction, so every op after it addresses the new name.
+    execution: statement
+    call: "ALTER ROLE ${loginname} RENAME TO ${new_loginname}"
   # remove_role:
   #   execution: function
   #   call: "your_schema.remove_app_role(${loginname})"

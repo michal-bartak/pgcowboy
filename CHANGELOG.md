@@ -10,6 +10,15 @@ versioning: [SemVer](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- **Rename role**
+- **MD5 password warning** when renaming - can be suppressed (see Settings → General).
+
+### Fixed
+
+- **Alter role comment** — changing a comment alone did not activate the Save button.
+
 ## [1.1.2] - 2026-08-20
 
 ### Fixed

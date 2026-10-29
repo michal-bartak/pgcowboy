@@ -236,6 +236,20 @@ export namespace model {
 	        this.parentRoles = source["parentRoles"];
 	    }
 	}
+	export class RenameRoleParams {
+	    loginName: string;
+	    newLoginName: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new RenameRoleParams(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.loginName = source["loginName"];
+	        this.newLoginName = source["newLoginName"];
+	    }
+	}
 	export class RemoveRoleParams {
 	    loginName: string;
 	
@@ -268,6 +282,7 @@ export namespace model {
 	    operation: string;
 	    createRole?: CreateRoleParams;
 	    removeRole?: RemoveRoleParams;
+	    renameRole?: RenameRoleParams;
 	    grantParents?: GrantParentsParams;
 	    revokeParents?: RevokeParentsParams;
 	    changePassword?: ChangePasswordParams;
@@ -285,6 +300,7 @@ export namespace model {
 	        this.operation = source["operation"];
 	        this.createRole = this.convertValues(source["createRole"], CreateRoleParams);
 	        this.removeRole = this.convertValues(source["removeRole"], RemoveRoleParams);
+	        this.renameRole = this.convertValues(source["renameRole"], RenameRoleParams);
 	        this.grantParents = this.convertValues(source["grantParents"], GrantParentsParams);
 	        this.revokeParents = this.convertValues(source["revokeParents"], RevokeParentsParams);
 	        this.changePassword = this.convertValues(source["changePassword"], ChangePasswordParams);
@@ -618,6 +634,7 @@ export namespace model {
 	    theme: string;
 	    commentDefaultView: string;
 	    stageCreateOnTargetAdd: boolean;
+	    suppressMd5RenameWarning: boolean;
 	    checkForUpdates?: boolean;
 	    passwordGen?: PasswordGen;
 	
@@ -630,6 +647,7 @@ export namespace model {
 	        this.theme = source["theme"];
 	        this.commentDefaultView = source["commentDefaultView"];
 	        this.stageCreateOnTargetAdd = source["stageCreateOnTargetAdd"];
+	        this.suppressMd5RenameWarning = source["suppressMd5RenameWarning"];
 	        this.checkForUpdates = source["checkForUpdates"];
 	        this.passwordGen = this.convertValues(source["passwordGen"], PasswordGen);
 	    }
@@ -721,6 +739,7 @@ export namespace model {
 	export class DBFunctions {
 	    createRole: DBFunction;
 	    removeRole: DBFunction;
+	    renameRole: DBFunction;
 	    grantParents: DBFunction;
 	    revokeParents: DBFunction;
 	    changePassword: DBFunction;
@@ -737,6 +756,7 @@ export namespace model {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.createRole = this.convertValues(source["createRole"], DBFunction);
 	        this.removeRole = this.convertValues(source["removeRole"], DBFunction);
+	        this.renameRole = this.convertValues(source["renameRole"], DBFunction);
 	        this.grantParents = this.convertValues(source["grantParents"], DBFunction);
 	        this.revokeParents = this.convertValues(source["revokeParents"], DBFunction);
 	        this.changePassword = this.convertValues(source["changePassword"], DBFunction);
@@ -871,6 +891,7 @@ export namespace model {
 		    return a;
 		}
 	}
+	
 	
 	
 	
@@ -1025,6 +1046,7 @@ export namespace model {
 	    operation: string;
 	    createRole?: CreateRoleParams;
 	    removeRole?: RemoveRoleParams;
+	    renameRole?: RenameRoleParams;
 	    grantParents?: GrantParentsParams;
 	    revokeParents?: RevokeParentsParams;
 	    changePassword?: ChangePasswordParams;
@@ -1046,6 +1068,7 @@ export namespace model {
 	        this.operation = source["operation"];
 	        this.createRole = this.convertValues(source["createRole"], CreateRoleParams);
 	        this.removeRole = this.convertValues(source["removeRole"], RemoveRoleParams);
+	        this.renameRole = this.convertValues(source["renameRole"], RenameRoleParams);
 	        this.grantParents = this.convertValues(source["grantParents"], GrantParentsParams);
 	        this.revokeParents = this.convertValues(source["revokeParents"], RevokeParentsParams);
 	        this.changePassword = this.convertValues(source["changePassword"], ChangePasswordParams);

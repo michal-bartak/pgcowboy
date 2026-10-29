@@ -59,6 +59,7 @@ type DBFunction struct {
 type DBFunctions struct {
 	CreateRole     DBFunction `yaml:"create_role" json:"createRole"`
 	RemoveRole     DBFunction `yaml:"remove_role" json:"removeRole"`
+	RenameRole     DBFunction `yaml:"rename_role" json:"renameRole"`
 	GrantParents   DBFunction `yaml:"grant_parents" json:"grantParents"`
 	RevokeParents  DBFunction `yaml:"revoke_parents" json:"revokeParents"`
 	ChangePassword DBFunction `yaml:"change_password" json:"changePassword"`
@@ -146,6 +147,10 @@ type UISettings struct {
 	// auto-staged for that cluster; when false (default), the cluster is only brought into
 	// scope (offered in the "Present on" editor) without staging a create.
 	StageCreateOnTargetAdd bool `yaml:"stage_create_on_target_add,omitempty" json:"stageCreateOnTargetAdd"`
+	// SuppressMD5RenameWarning hides the "a rename clears MD5-hashed passwords" note in the
+	// Rename role confirmation — for sites that use SCRAM, LDAP etc. Off by default; also set by
+	// the note's own "Suppress this warning" checkbox.
+	SuppressMD5RenameWarning bool `yaml:"suppress_md5_rename_warning,omitempty" json:"suppressMd5RenameWarning"`
 	// CheckForUpdates opts into the on-startup GitHub-Releases version check. Pointer so a
 	// missing value (nil) defaults to ON, including for existing configs — use AutoCheck().
 	CheckForUpdates *bool `yaml:"check_for_updates,omitempty" json:"checkForUpdates,omitempty"`
@@ -402,6 +407,12 @@ type SetConfigParams struct {
 	ConfigValue string `json:"configValue"`
 }
 
+// RenameRoleParams renames a role: ALTER ROLE <login> RENAME TO <new login>.
+type RenameRoleParams struct {
+	LoginName    string `json:"loginName"`
+	NewLoginName string `json:"newLoginName"`
+}
+
 // ResetConfigParams clears one role GUC: ALTER ROLE <login> RESET <name>.
 type ResetConfigParams struct {
 	LoginName  string `json:"loginName"`
@@ -414,6 +425,7 @@ type OperationSpec struct {
 	Operation      string                `json:"operation"`
 	CreateRole     *CreateRoleParams     `json:"createRole,omitempty"`
 	RemoveRole     *RemoveRoleParams     `json:"removeRole,omitempty"`
+	RenameRole     *RenameRoleParams     `json:"renameRole,omitempty"`
 	GrantParents   *GrantParentsParams   `json:"grantParents,omitempty"`
 	RevokeParents  *RevokeParentsParams  `json:"revokeParents,omitempty"`
 	ChangePassword *ChangePasswordParams `json:"changePassword,omitempty"`

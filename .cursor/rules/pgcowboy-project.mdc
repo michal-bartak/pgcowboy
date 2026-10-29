@@ -105,6 +105,7 @@ Config: `db_functions.<operation>.call` + optional `.execution` (`function` \| `
 |-------------|------------------|-------|
 | `create_role` | loginname, parent_roles, `${{<comment field>}}` (per `Config.CommentFields`) | `parent_roles`: statement → `"a", "b"`, function → inline `ARRAY['a','b']`; comment fields typed (string→literal, num/bool→bare, empty/absent→`NULL`); `ARRAY \|\|` requires `execution: function` |
 | `remove_role` | loginname, rolename (alias) | `statement`: e.g. `DROP ROLE ${loginname}`; `block`: a complete anonymous block (`DO $tag$ … $tag$;`), run verbatim |
+| `rename_role` | loginname, new_loginname | Default `statement`: `ALTER ROLE ${loginname} RENAME TO ${new_loginname}` — both identifiers; prepended to an existing cluster's batch so later ops use the new name |
 | `grant_parents` | loginname, parent_roles | `statement`: `GRANT ${parent_roles} TO ${loginname}` — identifiers, not quoted |
 | `revoke_parents` | loginname, parent_roles | Default `statement`: `REVOKE ${parent_roles} FROM ${loginname}` |
 | `change_password` | loginname, new_password | |
@@ -302,7 +303,7 @@ popup groups clusters by comment content (compared as JSON by value) and saves v
 editing a not-yet-existing role with an empty synthetic baseline (`synthCreateBaseline()`
 from `resolveSelectedClusters()`; `reconcilePendingWithUniverse()` on selection change);
 Alter = search → `pickUser` → `reloadDetails`. The static `#role-identity` block holds login
-(readonly in edit) + an inline **comment editor** (`#role-comment-editor`, module-level
+(editable in edit too: a changed name stages a **rename** — `alterRenameTo`, see below) + an inline **comment editor** (`#role-comment-editor`, module-level
 `commentEditor` state, `loadCommentEditor`). Comments are **format-agnostic** (plain text or
 arbitrary JSON, no forced keys): Fields↔Raw toggle, Fields edits string values only, labels
 come from Settings-managed `Config.CommentFields` (`comment_fields`, **empty by default and never
@@ -363,7 +364,14 @@ Cluster column already names it. `pg.cleanConnectError` dedupes pgx's interleave
 dial attempts ("A B A B" → "A B").
 `buildAlterClusterOps` orders grant→revoke→password→**set_attribute (all keywords
 combined)**→set_config→reset_config→set_comment; create prepends `create_role`
-(`buildCreateClusterOps`). Comment persists via `set_comment` (per-cluster `commentOverrides` wins,
+(`buildCreateClusterOps`). A staged **rename** (`alterRenameTo`) prepends `rename_role` to every
+`exists:true` cluster and every other op uses the new name (presence-add creates the new name,
+presence-remove drops the old one); `saveAlterations` → `confirmRename` validates, looks the new
+name up for collisions — a collision is a Close-only STOP (`canProceed:false`, Save aborted, since a
+partial rename leaves the role named differently across clusters) — and otherwise asks only to show
+the MD5-passwords-are-cleared note; with *Set password* ticked or `ui.suppress_md5_rename_warning`
+on there is no popup at all (the note's *Suppress this warning* checkbox sets that flag, also
+editable in Settings → General). Comment persists via `set_comment` (per-cluster `commentOverrides` wins,
 else `assembleComment`; create's/presence-add's `create_role` gets its comment-field placeholders
 from `commentFieldArgs(effectiveComment)`, follow-up `set_comment` authoritative). When comments vary the inline editor hides and the Comments
 dialog reconciles per cluster (`commentVersionEditors`). `.rce-fields` (both surfaces) is a
