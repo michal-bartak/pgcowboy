@@ -1017,7 +1017,21 @@ tr:last-child td { border-bottom: none; }
   color: var(--muted);
   padding: var(--control-pad-y) 0.9rem;
 }
+/* The group clips to its rounded border, so the end buttons carry the matching INNER radius —
+   a square button's inset focus ring would otherwise lose its outer corners to that clip. */
+.segmented .seg-btn:first-child {
+  border-top-left-radius: calc(var(--radius) - var(--hairline));
+  border-bottom-left-radius: calc(var(--radius) - var(--hairline));
+}
+.segmented .seg-btn:last-child {
+  border-top-right-radius: calc(var(--radius) - var(--hairline));
+  border-bottom-right-radius: calc(var(--radius) - var(--hairline));
+}
 .segmented .seg-btn + .seg-btn { border-left: var(--hairline) solid var(--border); }
+/* The divider is the only border a segment has, so the shared focus rule recolouring it would
+   double the ring's left edge; the inset ring alone marks focus, the same width on all sides. */
+.segmented .seg-btn:focus-visible,
+.segmented .seg-btn.active:focus-visible { border-color: var(--border); }
 .segmented .seg-btn:hover:not(:disabled) { color: var(--text); border-color: var(--border); }
 .segmented .seg-btn.active { background: var(--primary); color: #fff; }
 .segmented .seg-btn:disabled { color: var(--muted); opacity: 0.4; cursor: default; }

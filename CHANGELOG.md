@@ -20,6 +20,7 @@ versioning: [SemVer](https://semver.org/spec/v2.0.0.html).
 ### Fixed
 
 - **Alter role comment** — changing a comment alone did not activate the Save button.
+- **Focus ring on toggle buttons** (Appearance, Fields/Raw) — corners no longer cut off.
 
 ## [1.1.2] - 2026-08-20
 
