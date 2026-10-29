@@ -203,9 +203,9 @@ textarea {
   color: var(--text);
 }
 /* Keep the focus indicator INSIDE the control's box (border colour + inset ring) instead of
-   a native outer outline. Scroll containers such as .ops-body (and the overflow:hidden
-   .segmented) are edge-to-edge and clip overflow, so an outer ring on a flush-edge control
-   would be sliced off; an inset ring never extends past the control and can't be clipped.
+   a native outer outline. Scroll containers such as .ops-body are edge-to-edge and clip
+   overflow, so an outer ring on a flush-edge control would be sliced off; an inset ring never
+   extends past the control and can't be clipped.
    One appearance for every control — text fields, buttons, checkboxes. (.q-hint badges keep
    their own hover-style focus.) */
 input:not([type="checkbox"]):not([type="radio"]):not([type="color"]):focus-visible,
@@ -1008,7 +1008,7 @@ tr:last-child td { border-bottom: none; }
 }
 
 /* Segmented control (e.g. Appearance) — connected buttons, one active. */
-.segmented { display: inline-flex; align-self: flex-start; border: var(--hairline) solid var(--border); border-radius: var(--radius); overflow: hidden; }
+.segmented { display: inline-flex; align-self: flex-start; border: var(--hairline) solid var(--border); border-radius: var(--radius); }
 .segmented .seg-btn {
   min-height: var(--control-h);
   border: none;
@@ -1017,8 +1017,8 @@ tr:last-child td { border-bottom: none; }
   color: var(--muted);
   padding: var(--control-pad-y) 0.9rem;
 }
-/* The group clips to its rounded border, so the end buttons carry the matching INNER radius —
-   a square button's inset focus ring would otherwise lose its outer corners to that clip. */
+/* The end buttons carry the frame's INNER radius, which is what rounds the active fill — so the
+   group needs no overflow:hidden, and must not have one: it would clip the focus ring below. */
 .segmented .seg-btn:first-child {
   border-top-left-radius: calc(var(--radius) - var(--hairline));
   border-bottom-left-radius: calc(var(--radius) - var(--hairline));
@@ -1027,12 +1027,22 @@ tr:last-child td { border-bottom: none; }
   border-top-right-radius: calc(var(--radius) - var(--hairline));
   border-bottom-right-radius: calc(var(--radius) - var(--hairline));
 }
-.segmented .seg-btn + .seg-btn { border-left: var(--hairline) solid var(--border); }
-/* The divider is the only border a segment has, so the shared focus rule recolouring it would
-   double the ring's left edge; the inset ring alone marks focus, the same width on all sides. */
-.segmented .seg-btn:focus-visible,
-.segmented .seg-btn.active:focus-visible { border-color: var(--border); }
-.segmented .seg-btn:hover:not(:disabled) { color: var(--text); border-color: var(--border); }
+/* Dividers are an inset shadow, not a border, so a focused segment can replace them. */
+.segmented .seg-btn + .seg-btn { box-shadow: inset var(--hairline) 0 0 var(--border); }
+/* A segment has no border of its own, so the shared rule's border+inset pair would be half as
+   heavy as on a text field. The outer hairline is drawn OUTSIDE instead — over the group frame
+   and the neighbour's edge (z-index lifts it above the later sibling) — so the ring is the same
+   two hairlines as everywhere else, and its outer curve (inner radius + spread) meets the
+   frame's. */
+.segmented .seg-btn:focus-visible {
+  position: relative;
+  z-index: 1;
+  box-shadow: 0 0 0 var(--hairline) var(--primary), inset 0 0 0 var(--hairline) var(--primary);
+}
+.segmented .seg-btn.active:focus-visible {
+  box-shadow: 0 0 0 var(--hairline) #fff, inset 0 0 0 var(--hairline) #fff;
+}
+.segmented .seg-btn:hover:not(:disabled) { color: var(--text); }
 .segmented .seg-btn.active { background: var(--primary); color: #fff; }
 .segmented .seg-btn:disabled { color: var(--muted); opacity: 0.4; cursor: default; }
 
