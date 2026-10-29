@@ -14,7 +14,7 @@ versioning: [SemVer](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
-- **Rename role**
+- **Rename role** - incl pre-flight check
 - **MD5 password warning** when renaming - can be suppressed (see Settings → General).
 
 ### Fixed
